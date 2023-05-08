@@ -12,3 +12,10 @@ type: LIMIT
 Limit-Order Price: 12.0014
 Last updated: 2023-05-08 01:58:49
 Order status: In Progress
+2023-05-08 13:48:31,529 - entities.logger - TRADES - 
+ID: 3277817517
+action: SELL
+type: LIMIT
+Limit-Order Price: 12.0014
+Last updated: 2023-05-08 00:28:49
+Order status: In Progress
