@@ -1,5 +1,6 @@
 import requests
 import time
+import threading
 from datetime import datetime
 from entities.logger import *
 from entities.authenticator import *
@@ -11,7 +12,6 @@ from typing import List
 # NECESSARY BASIC DATA
 authenticator = Authenticator()
 logger = create_logger()
-
 
 # CONSTS
 API_BASE_URL = "https://api.bitopro.com/v3"
@@ -40,6 +40,7 @@ ORDER_STATUS = {
         "6": "Post-only cancelled"
         }
 
+LOG_TO_CONSOLE = False
 
 # ------------------------------------
 # REST FUNCTIONS
@@ -53,11 +54,15 @@ def get_balance() -> List[object]:
     endpoint = "/accounts/balance"
     response = requests.get(API_BASE_URL+endpoint, headers=create_default_headers())
 
-    print("\n------------------")
-    print(f"get_balance() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"get_balance() status_code: {response.status_code}\n")
+
+    logger.program(f"get_balance() status_code: {response.status_code}")
     try:
         return response.json()["data"]
-    except:
+    except Exception as e:
+        logger.program(f"Unparsable JSON; check response status code: {e}")
         raise Exception("Unparsable JSON; check response status code")
 
 
@@ -71,11 +76,15 @@ def get_orders(pair: str) -> List[object]:
     endpoint = f"/orders/all/{pair}"
     response = requests.get(API_BASE_URL+endpoint, headers=create_default_headers())
 
-    print("\n------------------")
-    print(f"get_orders() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"get_orders() status_code: {response.status_code}\n")
+
+    logger.program(f"get_orders() status_code: {response.status_code}")
     try:
         return response.json()["data"]
-    except:
+    except Exception as e:
+        logger.program(f"Unparsable JSON; check response status code: {e}")
         raise Exception("Unparsable JSON; check response status code")
 
 
@@ -89,11 +98,15 @@ def get_asset_price(pair: str) -> float:
     endpoint = f"/tickers/{pair}"
     response = requests.get(API_BASE_URL+endpoint, headers=create_default_headers())
 
-    print("\n------------------")
-    print(f"get_asset_price() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"get_asset_price() status_code: {response.status_code}\n")
+
+    logger.program(f"get_asset_price() status_code: {response.status_code}")
     try:
         return response.json()["data"]
-    except:
+    except Exception as e:
+        logger.program(f"Unparsable JSON; check response status code: {e}")
         raise Exception("Unparsable JSON; check response status code")
 
 
@@ -106,16 +119,20 @@ def get_book_order_price(pair: str) -> object:
     endpoint = f"/order-book/{pair}?limit=5"
     response = requests.get(API_BASE_URL+endpoint)
 
-    print("\n------------------")
-    print(f"get_book_order_price() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"get_book_order_price() status_code: {response.status_code}\n")
+
+    logger.program(f"get_book_order_price() status_code: {response.status_code}")
     try:
         return response.json()
-    except:
+    except Exception as e:
+        logger.program(f"Unparsable JSON; check response status code: {e}")
         raise Exception("Unparsable JSON; check response status code")
 
 
 # DELETE
-def cancel_order(pair: str, orderId: str) -> None:
+def cancel_order(pair: str, orderId: str) -> int:
     """
     params: order pair; id of the order to cancel
     performs: cancels an existing order
@@ -124,12 +141,17 @@ def cancel_order(pair: str, orderId: str) -> None:
     endpoint = f"/orders/{pair}/{orderId}"
     response = requests.delete(API_BASE_URL+endpoint, headers=create_default_headers())
 
-    print("\n------------------")
-    print(f"cancel_order() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"cancel_order() status_code: {response.status_code}\n")
 
+    logger.program(f"cancel_order() status_code: {response.status_code}")
+    logger.trades(f"Cancelled Order #{orderId}")
+
+    return response.status_code
 
 # POST
-def create_order(order: Order) -> None:
+def create_order(order: Order) -> int:
     """
     params: an order object for a specific pair
     function: post a new limit-order request for the given order
@@ -139,11 +161,21 @@ def create_order(order: Order) -> None:
     body = build_order_body(order)
     response = requests.post(API_BASE_URL+endpoint, headers=create_order_headers(body), data=body)
 
-    print("\n------------------")
-    print(f"create_order() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"create_order() status_code: {response.status_code}\n")
+    logger.program(f"create_order() status_code: {response.status_code}")
     try:
-        print(response.json())
-    except:
+        if LOG_TO_CONSOLE:
+            print(response.json())
+
+        logStr = f"ID: {order['id']}\n" + f"action: {order['action']}\n" + f"type: {order['type']}\n"
+        logStr += f"Limit-Order Price: {order['price']}\n"
+        logStr += f"Last updated: {datetime.fromtimestamp(int(order['updatedTimestamp']/1000))}\n"
+        logStr += f"Order status: {ORDER_STATUS[str(order['status'])]}"
+        logger.trades(f"\n{logStr}")
+    except Exception as e:
+        logger.program(f"Unparsable JSON; check response status code: {e}")
         raise Exception("Unparsable JSON; check response status code")
     finally:
         return response.status_code
@@ -160,11 +192,15 @@ def create_stop_limit_order(order: Order) -> None:
     body = build_order_body_stop_limit(order)
     response = requests.post(API_BASE_URL+endpoint, headers=create_order_headers(body), data=body)
 
-    print("\n------------------")
-    print(f"create_stop_limit_order() status_code: {response.status_code}\n")
+    if LOG_TO_CONSOLE:
+        print("\n------------------")
+        print(f"create_stop_limit_order() status_code: {response.status_code}\n")
+    logger.program(f"create_stop_limit_order() status_code: {response.status_code}")
     try:
-        print(response.json())
-    except:
+        if LOG_TO_CONSOLE:
+            print(response.json())
+    except Exception as e:
+        logger.program(f"Unparsable JSON; check response status code: {e}")
         raise Exception("Unparsable JSON; check response status code")
 
 
@@ -252,7 +288,8 @@ def parse_orders(orders: List[object]) -> str:
         logStr += f"Limit-Order Price: {order['price']}\n"
     logStr += f"Last updated: {datetime.fromtimestamp(int(order['updatedTimestamp']/1000))}\n"
     logStr += f"Order status: {ORDER_STATUS[str(order['status'])]}"
-    if ORDER_STATUS[str(order['status'])] == "In Progress":
+    
+    if LOG_TO_CONSOLE and ORDER_STATUS[str(order['status'])] == "In Progress":
         print(order)
 
     logger.trades(f"\n{logStr}")
@@ -268,11 +305,12 @@ def parse_balance(balances: List[object], asset: str) -> float:
     assetBalance =  0.0
     for balance in balances:
 
-        if balance["currency"] == asset:
-            print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
-            assetBalance = float(balance["available"])
-        elif balance["currency"] == "twd":
-            print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
+        if LOG_TO_CONSOLE:
+            if balance["currency"] == asset:
+                print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
+                assetBalance = float(balance["available"])
+            elif balance["currency"] == "twd":
+                print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
 
     return assetBalance
 
@@ -283,8 +321,11 @@ def parse_ticker_price(tickerObj: object) -> float:
     performs: prints last price
     returns: lastPrice as a float
     """
-    print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
-    print(f"24-delta: {tickerObj['priceChange24hr']}%")
+    if LOG_TO_CONSOLE:
+        print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
+        print(f"24-delta: {tickerObj['priceChange24hr']}%")
+
+    logger.price(f"{tickerObj['pair']},{tickerObj['lastPrice']},{tickerObj['priceChange24hr']},{tickerObj['volume24hr']}")
     return float(tickerObj['lastPrice'])
 
 
@@ -307,6 +348,146 @@ def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float
     return -1.0
 
 
+# TRADING STRATEGY FUNCTIONS
+originalPurchasePrice = 0.0
+shouldPurchase = True
+setStopLimit = False
+
+def perform_buy(pair: str) -> None:
+    global originalPurchasePrice
+    global shouldPurchase
+    global setStopLimit
+
+    while True:
+        acctBalances = get_balance()
+        twdBalance = parse_balance(acctBalances, "twd")
+
+        # determine trade price and amount
+        tmpPrice = parse_ticker_price(get_asset_price(pair)) * 1.02 
+        tmpAmount = twdBalance/tmpPrice
+
+        order_book = get_book_order_price(pair)
+        buyPrice = parse_order_book_orders(order_book, tmpPrice, tmpAmount, False)
+        buyAmount = twdBalance/buyPrice
+         
+        if shouldPurchase:
+            originalPurchasePrice = buyAmount
+            shouldPurchase = False
+            setStopLimit = True
+
+            logger.trades(f"originalPurchasePrice = {originalPurchasePrice}")
+
+        time.sleep(5)
+
+
+def perform_sale(pair: str) -> None:
+    global originalPurchasePrice
+    global shouldPurchase
+    global setStopLimit
+
+    while True:
+        # check current price
+        acctBalances = get_balance()
+        assetBalance = parse_balance(acctBalances, "sol")
+
+        order_book = get_book_order_price(pair)
+        hiBidPrice = parse_order_book_orders(order_book, originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
+        loAskPrice = parse_order_book_orders(order_book, originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, False)
+
+        if not shouldPurchase and setStopLimit:
+            setStopLimit = False
+            logger.trades(f"hi = {hiBidPrice} | lo = {loAskPrice}")
+
+
+        time.sleep(1)
+
+
+"""
+ACTUAL BOT
+# boolean flag for whether or not to purchase crypto for a later sale
+shouldPurchase = True
+setStopLimit = False
+originalPurchasePrice = 0.0
+pair = PAIRS["SOL"]
+
+# create two threads:
+# 1.) To make purchases
+# 2.) To poll price info and sell when limit-order or stop-loss is hit
+
+# loop where purchase happens
+while True:
+    if shouldPurchase:
+        try:
+            # get amount of funds available for trade
+            acctBalances = get_balance()
+            twdBalance = parse_balance(acctBalances, "twd")
+
+            # determine trade price and amount
+            tmpPrice = parse_ticker_price(get_asset_price(pair)) * 1.02 
+            tmpAmount = twdBalance/price
+
+            order_book = get_book_order_price(pair)
+            buyPrice = parse_order_book_orders(order_book, tmpPrice, tmpAmount, False)
+            buyAmount = twdBalance/buyPrice
+
+            # place order
+            statusCode = create_order(Order(pair, ACTIONS["buy"], "limit", buyAmount, buyPrice))
+            if statusCode != 200:
+                raise Exception(f"Order status code: {statusCode}")
+            
+            # check if order was filled
+            orderFilled = False
+            while not orderFilled:
+                pass
+
+            # set purchase price
+            originalPurchasePrice = buyPrice
+        except Exception as e:
+            print(f"Purchase could not be completed: {e}")
+        finally:
+            shouldPurchase = False
+            setStopLimit = True
+
+    # sleep thread until next period to see if a trade should be filled
+    time.sleep(60*60*4) 
+
+    # if there are NTD in the acct, that means a successful trade took place over the last period
+    acctBalances = get_balance()
+    twdBalance = parse_balance(acctBalances, "twd")
+    
+    if twdBalance > 5: # sometimes there a random few NTD left from "mostly" executed trades
+        shouldPurchase = True
+        setStopLimit = False
+         
+
+# loop where sale happens
+while True:
+    if not shouldPurchase and setStopLimit:
+        # check current price
+        acctBalances = get_balance()
+        assetBalance = parse_balance(acctBalances, "sol")
+
+        order_book = get_book_order_price(pair)
+        hiBidPrice = parse_order_book_orders(order_book, originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
+        loAskPrice = parse_order_book_orders(order_book, originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, False)
+
+        # has reached limit-order or stop-loss
+        if not hiBidPrice < 0:
+            try:
+                statusCode = create_order(Order(pair, ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
+                if statusCode == 200:
+                    setStopLimit = False
+        elif not loBidPrice < 0:
+            try:
+                statusCode = create_order(Order(pair, ACTIONS["sell"], "limit", assetBalance, loBidPrice))
+                if statusCode == 200:
+                    setStopLimit = False
+
+    time.sleep(1) # try again in one second
+"""
+
+
+
 # ------------------------------------
 # ------------------------------------
 # ------------------------------------
@@ -316,93 +497,27 @@ if __name__ == "__main__":
     print("INITIATING PROGRAM")
     print("------------------")
 
+    print("\n------------------")
+    print("CREATING THREADS")
 
+    buyThread = threading.Thread(target=perform_buy, args=[PAIRS["ADA"]])
+    sellThread = threading.Thread(target=perform_sale, args=[PAIRS["ADA"]])
+
+    print("\n------------------")
+    print("EXECUTING THREADS")
+
+    buyThread.start()
+    sellThread.start()
+
+    buyThread.join()
+    sellThread.join()
+
+    print("\n------------------")
+    print("TERMINATING PROGRAM")
+    print("------------------")
     """
-    ACTUAL BOT
-    # boolean flag for whether or not to purchase crypto for a later sale
-    shouldPurchase = True
-    setStopLimit = False
-    originalPurchasePrice = 0.0
-    pair = PAIRS["SOL"]
-
-    # create two threads:
-    # 1.) To make purchases
-    # 2.) To poll price info and sell when limit-order or stop-loss is hit
-
-    # loop where purchase happens
-    while True:
-        if shouldPurchase:
-            try:
-                # get amount of funds available for trade
-                acctBalances = get_balance()
-                twdBalance = parse_balance(acctBalances, "twd")
-
-                # determine trade price and amount
-                tmpPrice = parse_ticker_price(get_asset_price(pair)) * 1.02 
-                tmpAmount = twdBalance/price
-
-                order_book = get_book_order_price(pair)
-                buyPrice = parse_order_book_orders(order_book, tmpPrice, tmpAmount, False)
-                buyAmount = twdBalance/buyPrice
- 
-                # place order
-                statusCode = create_order(Order(pair, ACTIONS["buy"], "limit", buyAmount, buyPrice))
-                if statusCode != 200:
-                    raise Exception(f"Order status code: {statusCode}")
-                
-                # check if order was filled
-                orderFilled = False
-                while not orderFilled:
-                    pass
-
-                # set purchase price
-                originalPurchasePrice = buyPrice
-            except Exception as e:
-                print(f"Purchase could not be completed: {e}")
-            finally:
-                shouldPurchase = False
-                setStopLimit = True
-
-        # sleep thread until next period to see if a trade should be filled
-        time.sleep(60*60*4) 
-
-        # if there are NTD in the acct, that means a successful trade took place over the last period
-        acctBalances = get_balance()
-        twdBalance = parse_balance(acctBalances, "twd")
-        
-        if twdBalance > 5: # sometimes there a random few NTD left from "mostly" executed trades
-            shouldPurchase = True
-            setStopLimit = False
-             
-
-    # loop where sale happens
-    while True:
-        if not shouldPurchase and setStopLimit:
-            # check current price
-            acctBalances = get_balance()
-            assetBalance = parse_balance(acctBalances, "sol")
-
-            order_book = get_book_order_price(pair)
-            hiBidPrice = parse_order_book_orders(order_book, originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
-            loAskPrice = parse_order_book_orders(order_book, originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, False)
-
-            # has reached limit-order or stop-loss
-            if not hiBidPrice < 0:
-                try:
-                    statusCode = create_order(Order(pair, ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
-                    if statusCode == 200:
-                        setStopLimit = False
-            elif not loBidPrice < 0:
-                try:
-                    statusCode = create_order(Order(pair, ACTIONS["sell"], "limit", assetBalance, loBidPrice))
-                    if statusCode == 200:
-                        setStopLimit = False
-
-        time.sleep(1) # try again in one second
-    """
-
-
-    #TODO: handle raised exceptions
+    HOW TO USE
+    ----------
     acctBalances = get_balance()
     assetBalance = parse_balance(acctBalances, "ada")
 
@@ -411,12 +526,6 @@ if __name__ == "__main__":
 
     mostRecentOrderId = parse_orders(get_orders(pair))
 
-    print("\n------------------")
-    print("FINISHING PROGRAM")
-    print("------------------")
-    """
-    HOW TO USE
-    ----------
     CANCEL
     cancel_order(pair, mostRecentOrderId)
 
