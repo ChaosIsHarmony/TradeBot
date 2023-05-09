@@ -3,7 +3,7 @@
 HOW TO RUN
 ----------
 from parent directory:
-    $ python3 -m trade_bot.trade_bot
+    $ python3 -m TradeBot.trade_bot
 
 ----------
 EXAMPLES OF HOW TO USE AS A STAND ALONE IMPORT IN THE PYTHON INTERPRETER

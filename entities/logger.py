@@ -32,9 +32,9 @@ def create_logger() -> CustomLogger:
     """
     logger = CustomLogger(__name__)
 
-    tradesHandler = logging.FileHandler("trade_bot/logs/trades.log")
-    programHandler = logging.FileHandler("trade_bot/logs/program.log")
-    priceHandler = logging.FileHandler("trade_bot/logs/price.log")
+    tradesHandler = logging.FileHandler("TradeBot/logs/trades.log")
+    programHandler = logging.FileHandler("TradeBot/logs/program.log")
+    priceHandler = logging.FileHandler("TradeBot/logs/price.log")
 
     tradesFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     programFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")

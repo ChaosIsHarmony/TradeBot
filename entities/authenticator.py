@@ -6,7 +6,7 @@ import json
 class Authenticator:
     def __init__(self):
         try:
-            with open("trade_bot/api.json") as f:
+            with open("TradeBot/api.json") as f:
                 data = json.load(f)
                 self.API_KEY = data["API_KEY"].encode("utf-8")
                 self.API_SECRET = data["API_SECRET"].encode("utf-8")
