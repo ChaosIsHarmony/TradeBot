@@ -22,5 +22,3 @@ ORDER_STATUS = {
         "4": "Cancelled",
         "6": "Post-only cancelled"
         }
-
-LOG_TO_CONSOLE = False

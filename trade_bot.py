@@ -1,19 +1,60 @@
-import common
+"""
+----------
+HOW TO RUN
+----------
+from parent directory:
+    $ python3 -m trade_bot.trade_bot
+
+----------
+EXAMPLES OF HOW TO USE AS A STAND ALONE IMPORT IN THE PYTHON INTERPRETER
+----------
+SETUP
+> import trade_bot as tb
+
+> acctBalances = tb.get_balance()
+> assetBalance = tb.parse_balance(acctBalances, "ada")
+
+> pair = common.PAIRS["ADA"]
+> price = tb.parse_ticker_price(tb.get_asset_price(pair))
+
+> mostRecentOrderId, _ = tb.parse_orders(tb.get_orders(pair))
+
+CANCEL
+> tb.cancel_order(pair, mostRecentOrderId)
+
+BUY
+> tb.create_order(Order(pair, common.ACTIONS["buy"], "limit", assetBalance/price, price))
+
+SELL
+> price *= 1.02 # or *= 0.98
+> tb.create_order(Order(pair, common.ACTIONS["sell"], "limit", assetBalance, price))
+
+ORDER BOOK
+> order_book = tb.get_book_order_price(pair)
+> tb.parse_order_book_orders(order_book, price, assetBalance, True)
+"""
+
 import requests
 import time
 import threading
+from . import common
 from datetime import datetime
-from entities.logger import *
-from entities.authenticator import *
-from entities.order import Order
-from entities.strategy import *
+from .entities.logger import *
+from .entities.authenticator import *
+from .entities.order import Order
+from .entities.strategy import *
 from typing import List, Tuple
+
+# ------------------------------------
+# CONSTS
+LOG_TO_CONSOLE = False
 
 
 # ------------------------------------
 # NECESSARY BASIC DATA
 authenticator = Authenticator()
 logger = create_logger()
+
 
 # ------------------------------------
 # REST FUNCTIONS
@@ -27,17 +68,15 @@ def get_balance() -> List[object]:
     endpoint = "/accounts/balance"
     response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print("\n------------------")
         print(f"get_balance() status_code: {response.status_code}\n")
 
-    logger.program(f"get_balance() status_code: {response.status_code}")
     try:
+        logger.program(f"trade_bot:get_balance(): status_code: {response.status_code}")
         return response.json()["data"]
     except Exception as e:
-        logger.program(f"Unparsable JSON; check response status code: {e}")
-        raise Exception("Unparsable JSON; check response status code")
-
+        raise Exception(f"trade_bot:get_balance(): Unparsable JSON; check response status code: {e}")
 
 
 def get_orders(pair: str) -> List[object]:
@@ -49,60 +88,55 @@ def get_orders(pair: str) -> List[object]:
     endpoint = f"/orders/all/{pair}"
     response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print("\n------------------")
         print(f"get_orders() status_code: {response.status_code}\n")
 
-    logger.program(f"get_orders() status_code: {response.status_code}")
     try:
+        logger.program(f"trade_bot:get_orders(): status_code: {response.status_code}")
         return response.json()["data"]
     except Exception as e:
-        logger.program(f"Unparsable JSON; check response status code: {e}")
-        raise Exception("Unparsable JSON; check response status code")
-
+        raise Exception(f"trade_bot:get_orders(): Unparsable JSON; check response status code: {e}")
 
 
 def get_asset_price(pair: str) -> float:
     """
-    params: order pair
-    performs: gets most recent price for specified asset
+    params: trading pair (e.g., btc_twd)
+    performs: gets most recent price for specified trading pair
     returns: price as a float
     """
     endpoint = f"/tickers/{pair}"
     response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print("\n------------------")
         print(f"get_asset_price() status_code: {response.status_code}\n")
 
-    logger.program(f"get_asset_price() status_code: {response.status_code}")
-
     try:
+        logger.program(f"trade_bot:get_asset_price(): status_code: {response.status_code}")
         return response.json()["data"]
     except Exception as e:
-        logger.program(f"Unparsable JSON; check response status code: {e}")
-        raise Exception("Unparsable JSON; check response status code")
+        raise Exception(f"trade_bot:get_asset_price(): Unparsable JSON; check response status code: {e}")
 
 
 def get_book_order_price(pair: str) -> object:
     """
-    params: order pair
+    params: trading pair (e.g., btc_twd)
     performs: gets most recent book order price for specified asset
     returns: bids and asks as a dictionary
     """
     endpoint = f"/order-book/{pair}?limit=10"
     response = requests.get(common.API_BASE_URL+endpoint)
 
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print("\n------------------")
         print(f"get_book_order_price() status_code: {response.status_code}\n")
 
-    logger.program(f"get_book_order_price() status_code: {response.status_code}")
     try:
+        logger.program(f"trade_bot:get_book_order_price(): status_code: {response.status_code}")
         return response.json()
     except Exception as e:
-        logger.program(f"Unparsable JSON; check response status code: {e}")
-        raise Exception("Unparsable JSON; check response status code")
+        raise Exception(f"trade_bot:get_book_order_price(): Unparsable JSON; check response status code: {e}")
 
 
 # DELETE
@@ -110,53 +144,55 @@ def cancel_order(pair: str, orderId: str) -> int:
     """
     params: order pair; id of the order to cancel
     performs: cancels an existing order
-    returns: None
+    returns: response status code
     """
     endpoint = f"/orders/{pair}/{orderId}"
     response = requests.delete(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print("\n------------------")
         print(f"cancel_order() status_code: {response.status_code}\n")
 
-    logger.program(f"cancel_order() status_code: {response.status_code}")
+    logger.program(f"trade_bot:cancel_order(): status_code: {response.status_code}")
     logger.trades(f"Cancelled Order #{orderId}")
 
     return response.status_code
+
 
 # POST
 def create_order(order: Order) -> Tuple[int,int]:
     """
     params: an order object for a specific pair
     function: post a new limit-order request for the given order
-    returns: None
+    returns: tuple of response status code and order ID
     """
     orderId = -1
     endpoint = f"/orders/{order.get_pair()}"
     body = build_order_body(order)
     response = requests.post(common.API_BASE_URL+endpoint, headers=create_order_headers(body), data=body)
 
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print("\n------------------")
         print(f"create_order() status_code: {response.status_code}\n")
-    
-    logger.program(f"create_order() status_code: {response.status_code}")
 
     try:
-        if common.LOG_TO_CONSOLE:
+        logger.program(f"trade_bot:create_order(): status_code: {response.status_code}")
+
+        if LOG_TO_CONSOLE:
             print(response.json())
 
         result = response.json()
         orderId = result["id"]
 
-        logStr = f"ID: {result['id']}\n" + f"action: {result['action']}\n" + f"type: {result['type']}\n"
+        logStr = f"\nID: {result['id']}\n" 
+        logStr += f"action: {result['action']}\n" 
+        logStr += f"type: {result['type']}\n"
         logStr += f"Limit-Order Price: {result['price']}\n"
         logStr += f"Last updated: {datetime.fromtimestamp(int(result['updatedTimestamp']/1000))}\n"
         logStr += f"Order status: {common.ORDER_STATUS[str(result['status'])]}"
-        logger.trades(f"\n{logStr}")
+        logger.trades(logStr)
     except Exception as e:
-        logger.program(f"Unparsable JSON; check response status code: {e}")
-        raise Exception("Unparsable JSON; check response status code")
+        raise Exception(f"trade_bot:create_order(): Unparsable JSON; check response status code: {e}")
     finally:
         return (response.status_code, orderId)
 
@@ -184,7 +220,7 @@ def create_default_headers() -> object:
 
 def create_order_headers(body: str) -> object:
     """
-    params: None
+    params: payload body as a str
     performs: creates the headers required for authenticated actions (POST)
     returns: headers as a dictionary
     """
@@ -218,10 +254,12 @@ def parse_orders(orders: List[object]) -> Tuple[str, int]:
     """
     params: a list of orders from a specific asset
     performs: prints order info
-    returns: orderId as a str
+    returns: tuple of orderId as a str and order status as int
     """
+    # sort orders by timestamp
     sorted_orders = sorted(orders, key=lambda x: x["createdTimestamp"])
     order = sorted_orders[-1] # sorted in ascending order, so most recent is the last in the last
+
     logStr = f"ID: {order['id']}\n" + f"action: {order['action']}\n" + f"type: {order['type']}\n"
     if order["type"] == "STOP_LIMIT":
         logStr += f"Limit-Order Price: {order['price']}\n" + f"Stop-Loss Price: {order['stopPrice']}\n"
@@ -230,7 +268,7 @@ def parse_orders(orders: List[object]) -> Tuple[str, int]:
     logStr += f"Last updated: {datetime.fromtimestamp(int(order['updatedTimestamp']/1000))}\n"
     logStr += f"Order status: {common.ORDER_STATUS[str(order['status'])]}"
     
-    if common.LOG_TO_CONSOLE and common.ORDER_STATUS[str(order['status'])] == "In Progress":
+    if LOG_TO_CONSOLE and common.ORDER_STATUS[str(order["status"])] == "In Progress":
         print(order)
 
     logger.trades(f"\n{logStr}")
@@ -242,17 +280,15 @@ def parse_balance(balances: List[object], asset: str) -> float:
     """
     params: a list of balances in acct; a specific asset whose balance is of interest
     performs: prints balance info of all current balances
-    returns: available balance as a float
+    returns: available balance for asset as a float
     """
     assetBalance =  0.0
     for balance in balances:
+        if balance["currency"] == asset:
+            if LOG_TO_CONSOLE:
+                print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
 
-        if common.LOG_TO_CONSOLE:
-            if balance["currency"] == asset:
-                print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
-                assetBalance = float(balance["available"])
-            elif balance["currency"] == "twd":
-                print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
+            assetBalance = float(balance["available"])
 
     return assetBalance
 
@@ -260,14 +296,15 @@ def parse_balance(balances: List[object], asset: str) -> float:
 def parse_ticker_price(tickerObj: object) -> float:
     """
     params: a ticker of a specific asset
-    performs: prints last price
+    performs: prints last sale price
     returns: lastPrice as a float
     """
-    if common.LOG_TO_CONSOLE:
+    if LOG_TO_CONSOLE:
         print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
         print(f"24-delta: {tickerObj['priceChange24hr']}%")
 
     logger.price(f"{tickerObj['pair']},{tickerObj['lastPrice']},{tickerObj['priceChange24hr']},{tickerObj['volume24hr']}")
+
     return float(tickerObj['lastPrice'])
 
 
@@ -276,7 +313,7 @@ def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float
     NOTE: bids = buyers; asks = sellers
     params: two lists of orders (bids & asks); the price which to compare the orders to; the amount of an asset which to compare the orders to; whether or not to parse the bids or the asks
     performs: compares the orders' prices and amounts to target values for trade
-    returns: the best price to set the order at so that it can be filled ASAP
+    returns: the best price to set the order at so that it can be filled ASAP; -1.0 if no satisfactory order is found
     """
     if parseBids:
         for bid in orderBook["bids"]:
@@ -291,9 +328,8 @@ def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float
 
 
 # ------------------------------------
-# ------------------------------------
-# ------------------------------------
 # MAIN
+# ------------------------------------
 if __name__ == "__main__":
     print("\n------------------")
     print("INITIATING PROGRAM")
@@ -326,29 +362,4 @@ if __name__ == "__main__":
 
     print("\n------------------")
     print("TERMINATING PROGRAM")
-    print("------------------")
-    """
-    HOW TO USE
-    ----------
-    acctBalances = get_balance()
-    assetBalance = parse_balance(acctBalances, "ada")
-
-    pair = common.PAIRS["ADA"]
-    price = parse_ticker_price(get_asset_price(pair))
-
-    mostRecentOrderId, _ = parse_orders(get_orders(pair))
-
-    CANCEL
-    cancel_order(pair, mostRecentOrderId)
-
-    BUY
-    create_order(Order(pair, common.ACTIONS["buy"], "limit", assetBalance/price, price))
-
-    SELL
-    price *= 1.02 # or *= 0.98
-    create_order(Order(pair, common.ACTIONS["sell"], "limit", assetBalance, price))
-
-    ORDER BOOK
-    order_book = get_book_order_price(pair)
-    parse_order_book_orders(order_book, price, assetBalance, True)
-    """
+    print("------------------") 
