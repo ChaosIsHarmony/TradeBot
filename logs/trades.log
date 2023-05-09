@@ -1,2 +1,16 @@
 2023-05-08 15:51:15,947 - entities.logger - TRADES - originalPurchasePrice = 0.0
 2023-05-08 15:51:17,130 - entities.logger - TRADES - hi = 11.3182 | lo = -1.0
+2023-05-08 23:50:11,541 - entities.logger - TRADES - 
+ID: 3277817517
+action: SELL
+type: LIMIT
+Limit-Order Price: 12.0014
+Last updated: 2023-05-08 00:28:49
+Order status: In Progress
+2023-05-08 23:50:32,224 - entities.logger - TRADES - 
+ID: 3277817517
+action: SELL
+type: LIMIT
+Limit-Order Price: 12.0014
+Last updated: 2023-05-08 00:28:49
+Order status: In Progress

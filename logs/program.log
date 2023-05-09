@@ -27,3 +27,6 @@
 2023-05-08 15:51:29,073 - entities.logger - PROGRAM - get_book_order_price() status_code: 200
 2023-05-08 15:51:29,998 - entities.logger - PROGRAM - get_balance() status_code: 200
 2023-05-08 15:51:30,171 - entities.logger - PROGRAM - get_book_order_price() status_code: 200
+2023-05-08 23:48:48,475 - entities.logger - PROGRAM - get_balance() status_code: 200
+2023-05-08 23:50:11,538 - entities.logger - PROGRAM - get_orders() status_code: 200
+2023-05-08 23:50:32,221 - entities.logger - PROGRAM - get_orders() status_code: 200
