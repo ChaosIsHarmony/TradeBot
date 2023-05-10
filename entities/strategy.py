@@ -47,10 +47,17 @@ class Strategy():
  
     
     def handle_price_check(self, pair: str) -> None:
+        prevPrice = 0.0
+
         while not self.terminate:
             try:
                 # check/log current price
-                tb.parse_ticker_price(tb.get_asset_price(pair)) 
+                tickerObj = tb.get_asset_price(pair)
+                newPrice = tb.parse_ticker_price(tickerObj)
+
+                if newPrice != prevPrice:
+                    prevPrice = newPrice
+                    self.logger.price(f"{tickerObj['pair']},{tickerObj['lastPrice']},{tickerObj['priceChange24hr']},{tickerObj['volume24hr']}")
 
                 time.sleep(PRICE_CHECK_FREQUENCY)
             except Exception as e:

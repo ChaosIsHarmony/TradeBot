@@ -68,12 +68,14 @@ def get_balance() -> List[object]:
     endpoint = "/accounts/balance"
     response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if LOG_TO_CONSOLE:
-        print("\n------------------")
-        print(f"get_balance() status_code: {response.status_code}\n")
+
+    if response.status_code != 200:
+        logger.program(f"trade_bot:get_balance(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"get_balance() status_code: {response.status_code}\n")
 
     try:
-        logger.program(f"trade_bot:get_balance(): status_code: {response.status_code}")
         return response.json()["data"]
     except Exception as e:
         raise Exception(f"trade_bot:get_balance(): Unparsable JSON; check response status code: {e}")
@@ -88,12 +90,13 @@ def get_orders(pair: str) -> List[object]:
     endpoint = f"/orders/all/{pair}"
     response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if LOG_TO_CONSOLE:
-        print("\n------------------")
-        print(f"get_orders() status_code: {response.status_code}\n")
+    if response.status_code != 200:
+        logger.program(f"trade_bot:get_orders(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"get_orders() status_code: {response.status_code}\n")
 
     try:
-        logger.program(f"trade_bot:get_orders(): status_code: {response.status_code}")
         return response.json()["data"]
     except Exception as e:
         raise Exception(f"trade_bot:get_orders(): Unparsable JSON; check response status code: {e}")
@@ -108,12 +111,13 @@ def get_asset_price(pair: str) -> float:
     endpoint = f"/tickers/{pair}"
     response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if LOG_TO_CONSOLE:
-        print("\n------------------")
-        print(f"get_asset_price() status_code: {response.status_code}\n")
+    if response.status_code != 200:
+        logger.program(f"trade_bot:get_asset_price(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"get_asset_price() status_code: {response.status_code}\n")
 
     try:
-        logger.program(f"trade_bot:get_asset_price(): status_code: {response.status_code}")
         return response.json()["data"]
     except Exception as e:
         raise Exception(f"trade_bot:get_asset_price(): Unparsable JSON; check response status code: {e}")
@@ -128,12 +132,13 @@ def get_book_order_price(pair: str) -> object:
     endpoint = f"/order-book/{pair}?limit=10"
     response = requests.get(common.API_BASE_URL+endpoint)
 
-    if LOG_TO_CONSOLE:
-        print("\n------------------")
-        print(f"get_book_order_price() status_code: {response.status_code}\n")
+    if response.status_code != 200:
+        logger.program(f"trade_bot:get_book_order_price(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"get_book_order_price() status_code: {response.status_code}\n")
 
     try:
-        logger.program(f"trade_bot:get_book_order_price(): status_code: {response.status_code}")
         return response.json()
     except Exception as e:
         raise Exception(f"trade_bot:get_book_order_price(): Unparsable JSON; check response status code: {e}")
@@ -149,11 +154,12 @@ def cancel_order(pair: str, orderId: str) -> int:
     endpoint = f"/orders/{pair}/{orderId}"
     response = requests.delete(common.API_BASE_URL+endpoint, headers=create_default_headers())
 
-    if LOG_TO_CONSOLE:
-        print("\n------------------")
-        print(f"cancel_order() status_code: {response.status_code}\n")
+    if response.status_code != 200:
+        logger.program(f"trade_bot:cancel_order(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"cancel_order() status_code: {response.status_code}\n")
 
-    logger.program(f"trade_bot:cancel_order(): status_code: {response.status_code}")
     logger.trades(f"Cancelled Order #{orderId}")
 
     return response.status_code
@@ -171,13 +177,13 @@ def create_order(order: Order) -> Tuple[int,int]:
     body = build_order_body(order)
     response = requests.post(common.API_BASE_URL+endpoint, headers=create_order_headers(body), data=body)
 
-    if LOG_TO_CONSOLE:
-        print("\n------------------")
-        print(f"create_order() status_code: {response.status_code}\n")
+    if response.status_code != 200:
+        logger.program(f"trade_bot:create_order(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"create_order() status_code: {response.status_code}\n")
 
     try:
-        logger.program(f"trade_bot:create_order(): status_code: {response.status_code}")
-
         if LOG_TO_CONSOLE:
             print(response.json())
 
@@ -302,8 +308,6 @@ def parse_ticker_price(tickerObj: object) -> float:
     if LOG_TO_CONSOLE:
         print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
         print(f"24-delta: {tickerObj['priceChange24hr']}%")
-
-    logger.price(f"{tickerObj['pair']},{tickerObj['lastPrice']},{tickerObj['priceChange24hr']},{tickerObj['volume24hr']}")
 
     return float(tickerObj['lastPrice'])
 
