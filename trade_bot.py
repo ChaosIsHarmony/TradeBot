@@ -101,6 +101,26 @@ def get_orders(pair: str) -> List[object]:
     except Exception as e:
         raise Exception(f"trade_bot:get_orders(): Unparsable JSON; check response status code: {e}")
 
+def get_order_by_id(pair: str, orderId: str) -> object:
+    """
+    params: order pair; orderId
+    performs: gets a specified order for specified asset for last 90 days
+    returns: order as dictionaries
+    """
+    endpoint = f"/orders/{pair}/{orderId}"
+    response = requests.get(common.API_BASE_URL+endpoint, headers=create_default_headers())
+
+    if response.status_code != 200:
+        logger.program(f"trade_bot:get_order_by_id(): status_code: {response.status_code}")
+        if LOG_TO_CONSOLE:
+            print("\n------------------")
+            print(f"get_order_by_id() status_code: {response.status_code}\n")
+
+    try:
+        return response.json()
+    except Exception as e:
+        raise Exception(f"trade_bot:get_order_by_id(): Unparsable JSON; check response status code: {e}")
+
 
 def get_asset_price(pair: str) -> float:
     """
@@ -166,13 +186,13 @@ def cancel_order(pair: str, orderId: str) -> int:
 
 
 # POST
-def create_order(order: Order) -> Tuple[int,int]:
+def create_order(order: Order) -> Tuple[str, int]:
     """
     params: an order object for a specific pair
     function: post a new limit-order request for the given order
-    returns: tuple of response status code and order ID
+    returns: tuple of order ID and response status code
     """
-    orderId = -1
+    orderId = ""
     endpoint = f"/orders/{order.get_pair()}"
     body = build_order_body(order)
     response = requests.post(common.API_BASE_URL+endpoint, headers=create_order_headers(body), data=body)
@@ -200,7 +220,7 @@ def create_order(order: Order) -> Tuple[int,int]:
     except Exception as e:
         raise Exception(f"trade_bot:create_order(): Unparsable JSON; check response status code: {e}")
     finally:
-        return (response.status_code, orderId)
+        return (orderId, response.status_code)
 
 
 
@@ -267,19 +287,35 @@ def parse_orders(orders: List[object]) -> Tuple[str, int]:
     order = sorted_orders[-1] # sorted in ascending order, so most recent is the last in the last
 
     logStr = f"ID: {order['id']}\n" + f"action: {order['action']}\n" + f"type: {order['type']}\n"
+    logStr += f"Limit-Order Price: {order['price']}\n" 
     if order["type"] == "STOP_LIMIT":
-        logStr += f"Limit-Order Price: {order['price']}\n" + f"Stop-Loss Price: {order['stopPrice']}\n"
-    else:
-        logStr += f"Limit-Order Price: {order['price']}\n"
+        logStr += f"Stop-Loss Price: {order['stopPrice']}\n"
     logStr += f"Last updated: {datetime.fromtimestamp(int(order['updatedTimestamp']/1000))}\n"
     logStr += f"Order status: {common.ORDER_STATUS[str(order['status'])]}"
     
     if LOG_TO_CONSOLE and common.ORDER_STATUS[str(order["status"])] == "In Progress":
         print(order)
 
-    logger.trades(f"\n{logStr}")
-
     return (order["id"], order["status"])
+
+
+def parse_order_total(order: object) -> Tuple[float, int]:
+    """
+    params: an order from a specific asset
+    performs: extracts total amount of order 
+    returns: tuple of total amount as float and order status as int
+    """
+    logStr = f"ID: {order['id']}\n" + f"action: {order['action']}\n" + f"type: {order['type']}\n"
+    logStr += f"Avg-Execution Price: {order['avgExecutionPrice']}\n" 
+    logStr += f"Original Amount: {order['originalAmount']}"
+    logStr += f"Executed Amount: {order['executedAmount']}"
+    logStr += f"Last updated: {datetime.fromtimestamp(int(order['updatedTimestamp']/1000))}\n"
+    logStr += f"Order status: {common.ORDER_STATUS[str(order['status'])]}"
+    
+    if LOG_TO_CONSOLE and common.ORDER_STATUS[str(order["status"])] == "In Progress":
+        print(order)
+
+    return (float(order["avgExecutionPrice"]) * float(order["executedAmount"]), order["status"])
 
 
 def parse_balance(balances: List[object], asset: str) -> float:
@@ -335,6 +371,25 @@ def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float
 # MAIN
 # ------------------------------------
 if __name__ == "__main__":
+    """
+    LOG_TO_CONSOLE = True
+
+    pair = common.PAIRS["ADA"]
+    mostRecentOrderId, _ = parse_orders(get_orders(pair))
+    print(parse_order_total(get_order_by_id(pair, mostRecentOrderId)))
+
+
+    LOG_TO_CONSOLE = True
+
+    acctBalances = get_balance()
+    assetBalance = parse_balance(acctBalances, "ada")
+
+    pair = common.PAIRS["ADA"]
+    price = parse_ticker_price(get_asset_price(pair))
+
+    mostRecentOrderId, _ = parse_orders(get_orders(pair))
+
+"""
     print("\n------------------")
     print("INITIATING PROGRAM")
     print("------------------")
@@ -344,7 +399,7 @@ if __name__ == "__main__":
     print("\n------------------")
     print("LOADING STRATEGY")
 
-    strategy = Strategy(logger)
+    strategy = Strategy(logger, principal=1000.0)
 
     print("\n------------------")
     print("CREATING THREADS")
