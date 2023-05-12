@@ -122,7 +122,14 @@ class Strategy():
     def _perform_buy(self, pair: str, availableBalance: float) -> None:
         try:
             # determine trade price and amount
-            tmpPrice, dailyDelta = tb.parse_ticker_price(tb.get_asset_price(pair)) * 1.01 # 1% > than last sale price to make it easier to buy quickly
+            tmpPrice, dailyDelta = tb.parse_ticker_price(tb.get_asset_price(pair)) 
+
+            # if dailyDelta to the downside is too negative, then skip buying this period
+            if dailyDelta < -2.5:
+                self.logger.trades(f"skipped buy for this period because 24hr delta was too low: {dailyDelta}%")
+                return
+
+            tmpPrice *= 1.1 # 1% > than last sale price to make it easier to buy quickly
             tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
 
             # keep querying until appropriate order appears 
@@ -147,6 +154,12 @@ class Strategy():
         
     def _perform_sale(self, pair: str, assetBalance: float) -> None:
         try:
+            # delay sale if increase is too high (might go higher)
+            _, dailyDelta = tb.parse_ticker_price(tb.get_asset_price(pair))
+            if dailyDelta > 2.5:
+                return
+
+            # get best price for limit-order/stop-loss
             order_book = tb.get_book_order_price(pair)
             hiBidPrice = tb.parse_order_book_orders(order_book, self.originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
             loAskPrice = tb.parse_order_book_orders(order_book, self.originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, False)
