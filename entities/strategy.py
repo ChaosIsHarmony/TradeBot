@@ -14,14 +14,16 @@ DOWNSIDE_DELTA = 0.98
 # BUY_CHECK_FREQUENCY determines the period of the trade (or at least when next to check for buying opportunity)
 BUY_CHECK_FREQUENCY = 60*60*3  # Check every three hours
 
-PRICE_CHECK_FREQUENCY = 1
-SELL_CHECK_FREQUENCY = 1
+PRICE_CHECK_FREQUENCY = 10
+SELL_CHECK_FREQUENCY = 5
+PAUSE_CHECK_INTERVAL = 60 * 10 # pause API access for 10 minutes
 
 PROFIT_MARGIN_THRESHOLD = 1.1 # every time you make 10%, take profits
 PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of the increase as profits 
 
 class Strategy():
     def __init__(self, logger: CustomLogger, principal: float = 1000.0) -> None:
+        self.apiCallsHaveBeenPaused = False
         self.principal = principal 
         self.mostRecentSellOrderId = '3277817517'
         self.originalPurchasePrice = 0.0
@@ -33,23 +35,29 @@ class Strategy():
 
     def handle_buys(self, pair: str) -> None:
         while not self.terminate:
-            # determine amount of dry powder available
-            acctBalances = tb.get_balance()
-            twdBalance, _ = tb.parse_balance(acctBalances, "twd")
+            try:
+                # determine amount of dry powder available
+                acctBalances = tb.get_balance()
+                twdBalance, _ = tb.parse_balance(acctBalances, "twd")
+            
+                # if there are insufficient funds, don't purchase
+                # either limit order/stop loss have not triggered,
+                # or strategy has failed
+                # (buffer of 100NTD in case there is a small residual balance)
+                self.shouldPurchase = twdBalance > 100 and self.principal > 100 
 
-            # if there are insufficient funds, don't purchase
-            # either limit order/stop loss have not triggered,
-            # or strategy has failed
-            # (buffer of 100NTD in case there is a small residual balance)
-            self.shouldPurchase = twdBalance > 100 and self.principal > 100 
-
-            if self.shouldPurchase:
-                try:
+                if self.shouldPurchase:
                     self._perform_buy(pair, self.principal)
-                except Exception as e:
-                    self.logger.program(f"{e}")
 
-            time.sleep(BUY_CHECK_FREQUENCY) 
+            except Exception as e:
+                self.logger.program(f"Strategy:handle_buys(): {e}")
+                self.apiCallsHaveBeenPaused = True
+            finally:
+                if self.apiCallsHaveBeenPaused:
+                    time.sleep(PAUSE_CHECK_INTERVAL)
+                    self.apiCallsHaveBeenPaused = False
+                else:
+                    time.sleep(BUY_CHECK_FREQUENCY) 
  
     
     def handle_price_check(self, pair: str) -> None:
@@ -59,51 +67,62 @@ class Strategy():
             try:
                 # check/log current price
                 tickerObj = tb.get_asset_price(pair)
-                newPrice = tb.parse_ticker_price(tickerObj)
+                newPrice, dailyDelta = tb.parse_ticker_price(tickerObj)
 
                 if newPrice != prevPrice:
                     prevPrice = newPrice
-                    self.logger.price(f"{tickerObj['pair']},{tickerObj['lastPrice']},{tickerObj['priceChange24hr']},{tickerObj['volume24hr']}")
+                    self.logger.price(f"{pair},{newPrice},{dailyDelta},{tickerObj['volume24hr']}")
 
-                time.sleep(PRICE_CHECK_FREQUENCY)
             except Exception as e:
-                self.logger.program(f"{e}")
-         
+                self.logger.program(f"Strategy:handle_price_check(): {e}")
+                self.apiCallsHaveBeenPaused = True
+            finally:
+                if self.apiCallsHaveBeenPaused:
+                    time.sleep(PAUSE_CHECK_INTERVAL)
+                    self.apiCallsHaveBeenPaused = False
+                else:
+                    time.sleep(PRICE_CHECK_FREQUENCY) 
+ 
+     
 
     def handle_sales(self, pair: str) -> None:
         while not self.terminate:
-            # check if there is a balance of given asset 
-            asset = pair[:pair.find("_")] # parse asset
-            acctBalances = tb.get_balance()
-            _, assetBalance = tb.parse_balance(acctBalances, asset)
+            try:
+                # check if there is a balance of given asset 
+                asset = pair[:pair.find("_")] # parse asset
+                acctBalances = tb.get_balance()
+                _, assetBalance = tb.parse_balance(acctBalances, asset)
 
-            # if asset balance is nearly 0, then it implies the sale has succeeded
-            # buffer in case there is a small residual balance
-            if assetBalance < 0.0001:
-                try:
+                # if asset balance is nearly 0, then it implies the sale has succeeded
+                # buffer in case there is a small residual balance
+                if assetBalance < 0.0001:
                     self._principal_handler(pair)
                     self.shouldPurchase = True
-                except Exception as e:
-                    self.logger.program(f"{e}")
 
-
-            # otherwise, check if should set a stop loss or limit order
-            # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
-            if not self.shouldPurchase and self.setStopLimit: 
-                try:
+                # otherwise, check if should set a stop loss or limit order
+                # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
+                if not self.shouldPurchase and self.setStopLimit: 
                     self._perform_sale(pair, assetBalance)
-                except Exception as e:
-                    self.logger.program(f"{e}")
 
-            time.sleep(SELL_CHECK_FREQUENCY) 
+            except Exception as e:
+                self.logger.program(f"Strategy:handle_sales(): {e}")
+                self.apiCallsHaveBeenPaused = True
+            finally:
+                if self.apiCallsHaveBeenPaused:
+                    time.sleep(PAUSE_CHECK_INTERVAL)
+                    self.apiCallsHaveBeenPaused = False
+                else:
+                    time.sleep(SELL_CHECK_FREQUENCY) 
  
+ 
+
     # ----------------------
     # PRIVATE HELPER METHODS
     # ----------------------
     def _perform_buy(self, pair: str, availableBalance: float) -> None:
         try:
             # determine trade price and amount
-            tmpPrice = tb.parse_ticker_price(tb.get_asset_price(pair)) * 1.01 # 1% > than last sale price to make it easier to buy quickly
+            tmpPrice, dailyDelta = tb.parse_ticker_price(tb.get_asset_price(pair)) * 1.01 # 1% > than last sale price to make it easier to buy quickly
             tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
 
             # keep querying until appropriate order appears 

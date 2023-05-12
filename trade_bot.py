@@ -15,7 +15,7 @@ SETUP
 > assetBalance, _ = tb.parse_balance(acctBalances, "ada")
 
 > pair = common.PAIRS["ADA"]
-> price = tb.parse_ticker_price(tb.get_asset_price(pair))
+> price, _ = tb.parse_ticker_price(tb.get_asset_price(pair))
 
 > mostRecentOrderId, _ = tb.parse_orders(tb.get_orders(pair))
 
@@ -337,17 +337,17 @@ def parse_balance(balances: List[object], asset: str) -> Tuple[float, float]:
     return (availableBalance, totalBalance)
 
 
-def parse_ticker_price(tickerObj: object) -> float:
+def parse_ticker_price(tickerObj: object) -> Tuple[float, float]:
     """
     params: a ticker of a specific asset
     performs: prints last sale price
-    returns: lastPrice as a float
+    returns: lastPrice and 24hr delta as a floats
     """
     if LOG_TO_CONSOLE:
         print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
         print(f"24-delta: {tickerObj['priceChange24hr']}%")
 
-    return float(tickerObj['lastPrice'])
+    return (float(tickerObj['lastPrice']), float(tickerObj['priceChange24hr']))
 
 
 def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float, parseBids: bool) -> float:
@@ -387,7 +387,7 @@ if __name__ == "__main__":
     assetBalance, _ = parse_balance(acctBalances, "ada")
 
     pair = common.PAIRS["ADA"]
-    price = parse_ticker_price(get_asset_price(pair))
+    price, _ = parse_ticker_price(get_asset_price(pair))
 
     mostRecentOrderId, _ = parse_orders(get_orders(pair))
 """
