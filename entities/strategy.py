@@ -21,6 +21,9 @@ PAUSE_CHECK_INTERVAL = 60 * 10 # pause API access for 10 minutes
 PROFIT_MARGIN_THRESHOLD = 1.1 # every time you make 10%, take profits
 PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of the increase as profits 
 
+DAILY_DELTA_THRESHOLD_HI = 2.5
+DAILY_DELTA_THRESHOLD_LO = -2.5
+
 class Strategy():
     def __init__(self, logger: CustomLogger, principal: float = 1000.0) -> None:
         self.apiCallsHaveBeenPaused = False
@@ -125,7 +128,7 @@ class Strategy():
             tmpPrice, dailyDelta = tb.parse_ticker_price(tb.get_asset_price(pair)) 
 
             # if dailyDelta to the downside is too negative, then skip buying this period
-            if dailyDelta < -2.5:
+            if dailyDelta < DAILY_DELTA_THRESHOLD_LO:
                 self.logger.trades(f"skipped buy for this period because 24hr delta was too low: {dailyDelta}%")
                 return
 
@@ -156,7 +159,8 @@ class Strategy():
         try:
             # delay sale if increase is too high (might go higher)
             _, dailyDelta = tb.parse_ticker_price(tb.get_asset_price(pair))
-            if dailyDelta > 2.5:
+            if dailyDelta > DAILY_DELTA_THRESHOLD_HI:
+                self.logger.trades(f"skipped buy for this period because 24hr delta was too high: {dailyDelta}%")
                 return
 
             # get best price for limit-order/stop-loss
