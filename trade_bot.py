@@ -12,7 +12,7 @@ SETUP
 > import trade_bot as tb
 
 > acctBalances = tb.get_balance()
-> assetBalance = tb.parse_balance(acctBalances, "ada")
+> assetBalance, _ = tb.parse_balance(acctBalances, "ada")
 
 > pair = common.PAIRS["ADA"]
 > price = tb.parse_ticker_price(tb.get_asset_price(pair))
@@ -318,21 +318,23 @@ def parse_order_total(order: object) -> Tuple[float, int]:
     return (float(order["avgExecutionPrice"]) * float(order["executedAmount"]), order["status"])
 
 
-def parse_balance(balances: List[object], asset: str) -> float:
+def parse_balance(balances: List[object], asset: str) -> Tuple[float, float]:
     """
     params: a list of balances in acct; a specific asset whose balance is of interest
     performs: prints balance info of all current balances
-    returns: available balance for asset as a float
+    returns: available and total balances for asset as a floats
     """
-    assetBalance =  0.0
+    availableBalance =  0.0
+    totalBalance =  0.0
     for balance in balances:
         if balance["currency"] == asset:
             if LOG_TO_CONSOLE:
                 print(f"{balance['currency']}: \n\ttotal = {balance['amount']} \n\tavailable = {balance['available']}")
 
-            assetBalance = float(balance["available"])
+            availableBalance = float(balance["available"])
+            totalBalance = float(balance["amount"])
 
-    return assetBalance
+    return (availableBalance, totalBalance)
 
 
 def parse_ticker_price(tickerObj: object) -> float:
@@ -382,14 +384,14 @@ if __name__ == "__main__":
     LOG_TO_CONSOLE = True
 
     acctBalances = get_balance()
-    assetBalance = parse_balance(acctBalances, "ada")
+    assetBalance, _ = parse_balance(acctBalances, "ada")
 
     pair = common.PAIRS["ADA"]
     price = parse_ticker_price(get_asset_price(pair))
 
     mostRecentOrderId, _ = parse_orders(get_orders(pair))
-
 """
+
     print("\n------------------")
     print("INITIATING PROGRAM")
     print("------------------")

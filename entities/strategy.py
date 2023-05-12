@@ -23,7 +23,7 @@ PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of th
 class Strategy():
     def __init__(self, logger: CustomLogger, principal: float = 1000.0) -> None:
         self.principal = principal 
-        self.mostRecentSellOrderId = 0
+        self.mostRecentSellOrderId = '3277817517'
         self.originalPurchasePrice = 0.0
         self.shouldPurchase = True
         self.setStopLimit = False
@@ -35,7 +35,7 @@ class Strategy():
         while not self.terminate:
             # determine amount of dry powder available
             acctBalances = tb.get_balance()
-            twdBalance = tb.parse_balance(acctBalances, "twd")
+            twdBalance, _ = tb.parse_balance(acctBalances, "twd")
 
             # if there are insufficient funds, don't purchase
             # either limit order/stop loss have not triggered,
@@ -75,7 +75,7 @@ class Strategy():
             # check if there is a balance of given asset 
             asset = pair[:pair.find("_")] # parse asset
             acctBalances = tb.get_balance()
-            assetBalance = tb.parse_balance(acctBalances, asset)
+            _, assetBalance = tb.parse_balance(acctBalances, asset)
 
             # if asset balance is nearly 0, then it implies the sale has succeeded
             # buffer in case there is a small residual balance
