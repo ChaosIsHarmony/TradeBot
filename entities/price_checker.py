@@ -21,7 +21,6 @@ class PriceChecker:
                 for pair in common.PAIRS.values():
                     # check/log current price
                     tickerObj = tb.get_asset_price(pair)
-                    print(tickerObj)
                     newPrice, dailyDelta = tb.parse_ticker_price(tickerObj)
 
                     if newPrice != prevPrice:
