@@ -38,7 +38,7 @@ def create_logger() -> CustomLogger:
 
     tradesFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     programFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    priceFormatter = logging.Formatter("%(message)s")
+    priceFormatter = logging.Formatter("%(asctime)s,%(message)s")
 
     tradesHandler.setFormatter(tradesFormatter)
     programHandler.setFormatter(programFormatter)
