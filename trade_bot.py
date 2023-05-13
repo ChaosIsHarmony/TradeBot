@@ -401,23 +401,26 @@ if __name__ == "__main__":
     print("\n------------------")
     print("LOADING STRATEGY")
 
-    priceChecker = PriceChecker(logger)
     strategy = Strategy(logger, principal=1000.0)
+    priceChecker = PriceChecker(logger)
 
     print("\n------------------")
     print("CREATING THREADS")
 
     buyThread = threading.Thread(target=strategy.handle_buys, args=[pair])
     sellThread = threading.Thread(target=strategy.handle_sales, args=[pair])
+    priceThread = threading.Thread(target=priceChecker.handle_price_check)
 
     print("\n------------------")
     print("EXECUTING THREADS")
 
     buyThread.start()
     sellThread.start()
+    priceThread.start()
 
     buyThread.join()
     sellThread.join()
+    priceThread.join()
 
     print("\n------------------")
     print("TERMINATING PROGRAM")
