@@ -64,21 +64,22 @@ class Strategy():
     def handle_sales(self, pair: str) -> None:
         while not self.terminate:
             try:
-                # check if there is a balance of given asset 
-                asset = pair[:pair.find("_")] # parse asset
-                acctBalances = tb.get_balance()
-                _, assetBalance = tb.parse_balance(acctBalances, asset)
+                if self.setStopLimit:
+                    # check if there is a balance of given asset 
+                    asset = pair[:pair.find("_")] # parse asset
+                    acctBalances = tb.get_balance()
+                    _, assetBalance = tb.parse_balance(acctBalances, asset)
 
-                # if asset balance is nearly 0, then it implies the sale has succeeded
-                # buffer in case there is a small residual balance
-                if assetBalance < 0.0001:
-                    self._principal_handler(pair)
-                    self.shouldPurchase = True
+                    # if asset balance is nearly 0, then it implies the sale has succeeded
+                    # buffer in case there is a small residual balance
+                    if assetBalance < 0.0001:
+                        self._principal_handler(pair)
+                        self.shouldPurchase = True
 
-                # otherwise, check if should set a stop loss or limit order
-                # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
-                if not self.shouldPurchase and self.setStopLimit: 
-                    self._perform_sale(pair, assetBalance)
+                    # otherwise, check if should set a stop loss or limit order
+                    # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
+                    if not self.shouldPurchase: 
+                        self._perform_sale(pair, assetBalance)
 
             except Exception as e:
                 self.logger.program(f"Strategy:handle_sales(): {e}")
