@@ -401,7 +401,6 @@ if __name__ == "__main__":
     print("\n------------------")
     print("LOADING STRATEGY")
 
-    priceChecker = PriceChecker(logger)
     strategy = Strategy(logger, principal=1000.0)
 
     print("\n------------------")
@@ -415,6 +414,8 @@ if __name__ == "__main__":
 
     buyThread.start()
     sellThread.start()
+
+    priceChecker = PriceChecker(logger)
 
     buyThread.join()
     sellThread.join()
