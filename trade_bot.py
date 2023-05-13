@@ -418,6 +418,8 @@ if __name__ == "__main__":
     sellThread.start()
     priceThread.start()
 
+    priceChecker = PriceChecker(logger)
+
     buyThread.join()
     sellThread.join()
     priceThread.join()
