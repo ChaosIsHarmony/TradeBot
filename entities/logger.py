@@ -1,5 +1,4 @@
 import logging
-
 # CUSTOM LOG LEVELS
 TRADES_LOG_LEVEL = 7
 PROGRAM_LOG_LEVEL = 8
@@ -23,6 +22,7 @@ class CustomLogger(logging.getLoggerClass()):
         self._log(PRICE_LOG_LEVEL, message, args, **kws)
 
 
+
 def create_logger() -> CustomLogger:
     """
     HOW TO USE
@@ -38,7 +38,7 @@ def create_logger() -> CustomLogger:
 
     tradesFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     programFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    priceFormatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    priceFormatter = logging.Formatter("%(message)s")
 
     tradesHandler.setFormatter(tradesFormatter)
     programHandler.setFormatter(programFormatter)
@@ -58,8 +58,11 @@ def create_logger() -> CustomLogger:
     tradesHandler.addFilter(price_filter)
     programHandler.addFilter(price_filter)
 
+    # Add all handlers to logger
     logger.addHandler(tradesHandler)
     logger.addHandler(programHandler)
     logger.addHandler(priceHandler)
 
     return logger
+
+

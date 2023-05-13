@@ -14,9 +14,7 @@ DOWNSIDE_DELTA = 0.98
 # BUY_CHECK_FREQUENCY determines the period of the trade (or at least when next to check for buying opportunity)
 BUY_CHECK_FREQUENCY = 60*60*3  # Check every three hours
 
-PRICE_CHECK_FREQUENCY = 10
 SELL_CHECK_FREQUENCY = 5
-PAUSE_CHECK_INTERVAL = 60 * 10 # pause API access for 10 minutes
 
 PROFIT_MARGIN_THRESHOLD = 1.1 # every time you make 10%, take profits
 PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of the increase as profits 
@@ -57,37 +55,12 @@ class Strategy():
                 self.apiCallsHaveBeenPaused = True
             finally:
                 if self.apiCallsHaveBeenPaused:
-                    time.sleep(PAUSE_CHECK_INTERVAL)
+                    time.sleep(common.PAUSE_CHECK_INTERVAL)
                     self.apiCallsHaveBeenPaused = False
                 else:
                     time.sleep(BUY_CHECK_FREQUENCY) 
  
     
-    def handle_price_check(self, pair: str) -> None:
-        prevPrice = 0.0
-
-        while not self.terminate:
-            try:
-                # check/log current price
-                tickerObj = tb.get_asset_price(pair)
-                newPrice, dailyDelta = tb.parse_ticker_price(tickerObj)
-
-                if newPrice != prevPrice:
-                    prevPrice = newPrice
-                    self.logger.price(f"{pair},{newPrice},{dailyDelta},{tickerObj['volume24hr']}")
-
-            except Exception as e:
-                self.logger.program(f"Strategy:handle_price_check(): {e}")
-                self.apiCallsHaveBeenPaused = True
-            finally:
-                if self.apiCallsHaveBeenPaused:
-                    time.sleep(PAUSE_CHECK_INTERVAL)
-                    self.apiCallsHaveBeenPaused = False
-                else:
-                    time.sleep(PRICE_CHECK_FREQUENCY) 
- 
-     
-
     def handle_sales(self, pair: str) -> None:
         while not self.terminate:
             try:
@@ -112,7 +85,7 @@ class Strategy():
                 self.apiCallsHaveBeenPaused = True
             finally:
                 if self.apiCallsHaveBeenPaused:
-                    time.sleep(PAUSE_CHECK_INTERVAL)
+                    time.sleep(common.PAUSE_CHECK_INTERVAL)
                     self.apiCallsHaveBeenPaused = False
                 else:
                     time.sleep(SELL_CHECK_FREQUENCY) 

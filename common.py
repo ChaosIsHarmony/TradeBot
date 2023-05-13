@@ -22,3 +22,5 @@ ORDER_STATUS = {
         "4": "Cancelled",
         "6": "Post-only cancelled"
         }
+
+PAUSE_CHECK_INTERVAL = 60 * 10 # pause API access for 10 minutes

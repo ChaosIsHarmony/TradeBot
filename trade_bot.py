@@ -42,6 +42,7 @@ from datetime import datetime
 from .entities.logger import *
 from .entities.authenticator import *
 from .entities.order import Order
+from .entities.price_checker import *
 from .entities.strategy import *
 from typing import List, Tuple
 
@@ -391,7 +392,6 @@ if __name__ == "__main__":
 
     mostRecentOrderId, _ = parse_orders(get_orders(pair))
 """
-
     print("\n------------------")
     print("INITIATING PROGRAM")
     print("------------------")
@@ -401,6 +401,7 @@ if __name__ == "__main__":
     print("\n------------------")
     print("LOADING STRATEGY")
 
+    priceChecker = PriceChecker(logger)
     strategy = Strategy(logger, principal=1000.0)
 
     print("\n------------------")
@@ -408,18 +409,15 @@ if __name__ == "__main__":
 
     buyThread = threading.Thread(target=strategy.handle_buys, args=[pair])
     sellThread = threading.Thread(target=strategy.handle_sales, args=[pair])
-    priceThread = threading.Thread(target=strategy.handle_price_check, args=[pair])
 
     print("\n------------------")
     print("EXECUTING THREADS")
 
     buyThread.start()
     sellThread.start()
-    priceThread.start()
 
     buyThread.join()
-    priceThread.join()
-    priceThread.join()
+    sellThread.join()
 
     print("\n------------------")
     print("TERMINATING PROGRAM")
