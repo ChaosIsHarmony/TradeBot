@@ -26,7 +26,6 @@ BUY
 > tb.create_order(Order(pair, common.ACTIONS["buy"], "limit", assetBalance/price, price))
 
 SELL
-> price *= 1.02 # or *= 0.98
 > tb.create_order(Order(pair, common.ACTIONS["sell"], "limit", assetBalance, price))
 
 ORDER BOOK
@@ -43,7 +42,7 @@ from .entities.logger import *
 from .entities.authenticator import *
 from .entities.order import Order
 from .entities.price_checker import *
-from .entities.strategy import *
+from .strategies.short_term_strategy import *
 from typing import List, Tuple
 
 # ------------------------------------
@@ -401,7 +400,7 @@ if __name__ == "__main__":
     print("\n------------------")
     print("LOADING STRATEGY")
 
-    strategy = Strategy(logger, principal=1000.0)
+    strategy = ShortTermStrategy(logger, principal=1000.0)
     priceChecker = PriceChecker(logger)
 
     print("\n------------------")
@@ -417,8 +416,6 @@ if __name__ == "__main__":
     buyThread.start()
     sellThread.start()
     priceThread.start()
-
-    priceChecker = PriceChecker(logger)
 
     buyThread.join()
     sellThread.join()

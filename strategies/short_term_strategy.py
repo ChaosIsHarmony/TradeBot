@@ -1,8 +1,16 @@
+"""
+LENGTH:     Short-term
+CONDITIONS: 
+    - Sell when position has changed +/- 2%
+    - Repeat until principal reaches below threshold
+    - Take 5% profits when position has increased by 10%
+    - Delay purchase or sale while the daily delta is > 2.5% (FOR SELL) or < -2.5% (FOR BUY) 
+"""
 import time
 from .. import common
 from .. import trade_bot as tb
-from .logger import *
-from .order import *
+from ..entities.logger import *
+from ..entities.order import *
 from typing import Tuple
 
 
@@ -22,7 +30,7 @@ PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of th
 DAILY_DELTA_THRESHOLD_HI = 2.5
 DAILY_DELTA_THRESHOLD_LO = -2.5
 
-class Strategy():
+class ShortTermStrategy():
     def __init__(self, logger: CustomLogger, principal: float = 1000.0) -> None:
         self.apiCallsHaveBeenPaused = False
         self.principal = principal 
@@ -51,7 +59,7 @@ class Strategy():
                     self._perform_buy(pair, self.principal)
 
             except Exception as e:
-                self.logger.program(f"Strategy:handle_buys(): {e}")
+                self.logger.program(f"ShortTermStrategy:handle_buys(): {e}")
                 self.apiCallsHaveBeenPaused = True
             finally:
                 if self.apiCallsHaveBeenPaused:
@@ -82,7 +90,7 @@ class Strategy():
                         self._perform_sale(pair, assetBalance)
 
             except Exception as e:
-                self.logger.program(f"Strategy:handle_sales(): {e}")
+                self.logger.program(f"ShortTermStrategy:handle_sales(): {e}")
                 self.apiCallsHaveBeenPaused = True
             finally:
                 if self.apiCallsHaveBeenPaused:
@@ -111,6 +119,10 @@ class Strategy():
 
             # keep querying until appropriate order appears 
             buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice, tmpAmount, availableBalance)
+            # if failed to find appropriate ask, wait and then try again 
+            if buyPrice < 0.0:
+                time.sleep(common.PAUSE_CHECK_INTERVAL)
+                self._perform_buy(pair, availableBalance)
 
             # place order
             purchaseSuccessful = self._place_buy_order(pair, buyAmount, buyPrice)
@@ -124,7 +136,7 @@ class Strategy():
                 self.logger.trades(f"originalPurchasePrice = {self.originalPurchasePrice}")
             else:
                 self.terminate = True
-                self.logger.program(f"Strategy:_perform_buy(): Could not purchase {pair} @ {buyPrice} NTD for {buyAmount} coins.")
+                self.logger.program(f"ShortTermStrategy:_perform_buy(): Could not purchase {pair} @ {buyPrice} NTD for {buyAmount} coins.")
         except Exception as e:
             raise e
 
@@ -140,15 +152,15 @@ class Strategy():
             # get best price for limit-order/stop-loss
             order_book = tb.get_book_order_price(pair)
             hiBidPrice = tb.parse_order_book_orders(order_book, self.originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
-            loAskPrice = tb.parse_order_book_orders(order_book, self.originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, False)
+            loBidPrice = tb.parse_order_book_orders(order_book, self.originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, True)
 
-            if hiBidPrice > 0.0 or loAskPrice > 0.0:
+            if hiBidPrice > 0.0 or loBidPrice > 0.0:
                 # place limit-order
                 if hiBidPrice > 0.0:
                     self.mostRecentSellOrderId, _ = tb.create_order(Order(pair, common.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
                 # place stop-loss
-                elif loAskPrice > 0.0:
-                    self.mostRecentSellOrderId, _ = tb.create_order(Order(pair, common.ACTIONS["sell"], "limit", assetBalance, loAskPrice))
+                elif loBidPrice > 0.0:
+                    self.mostRecentSellOrderId, _ = tb.create_order(Order(pair, common.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
      
                 # reset relevant global variables
                 self.setStopLimit = False
@@ -159,7 +171,7 @@ class Strategy():
     def _find_satisfactory_ask(self, pair: str, tmpPrice: float, tmpAmount: float, availableBalance) -> Tuple[float, float]:
         buyPrice = -1.0
         buyAmount = 0.0
-        attempts = 10000
+        attempts = 100
 
         # attempt to find a satisfactory ask (10000 attempts before thread raises an exception and terminates)
         while True:
@@ -172,8 +184,8 @@ class Strategy():
             # handle attempts
             attempts -= 1
             if attempts < 1:
-                self.terminate = True
-                raise Exception("Strategy:_find_satisfactory_ask(): Too many attempts to find satisfactory ask.")
+                self.logger.program("ShortTermStrategy:_find_satisfactory_ask(): Too many attempts to find satisfactory ask.")
+                break
 
             time.sleep(0.25) # wait a bit and check again to see if there are new orders 
         
@@ -183,7 +195,7 @@ class Strategy():
     def _place_buy_order(self, pair: str, buyAmount: float, buyPrice: float) -> bool:
         statusCode, orderId = tb.create_order(Order(pair, common.ACTIONS["buy"], "limit", buyAmount, buyPrice))
         if statusCode != 200:
-            raise Exception(f"Strategy:_place_buy_order():FAILED ORDER ERROR: Order status code - {statusCode}")
+            raise Exception(f"ShortTermStrategy:_place_buy_order():FAILED ORDER ERROR: Order status code - {statusCode}")
         
         # check if order was filled
         attempts = 1000
@@ -192,7 +204,7 @@ class Strategy():
             
             if mostRecentOrderId != orderId:
                 self.terminate = True
-                raise Exception(f"Strategy:_place_buy_order():ORDER ERROR: mostRecentOrderId ({mostRecentOrderId}) is different from targetOrderId ({orderId}).")
+                raise Exception(f"ShortTermStrategy:_place_buy_order():ORDER ERROR: mostRecentOrderId ({mostRecentOrderId}) is different from targetOrderId ({orderId}).")
 
             if mostRecentOrderStatus == 2: # Completed
                 return True
@@ -210,7 +222,7 @@ class Strategy():
 
         # check to make sure the order has been filled 
         if not orderStatus == 2: # not Completed
-            raise Exception(f"Strategy:_principal_handler():ORDER ERROR: attempted to readjust principal on an incomplete order: mostRecentSellOrderId = {self.mostRecentSellOrderId}.")
+            raise Exception(f"ShortTermStrategy:_principal_handler():ORDER ERROR: attempted to readjust principal on an incomplete order: mostRecentSellOrderId = {self.mostRecentSellOrderId}.")
 
         # if principal has reached threshold, reset it to the reflect profit taking
         if self.principal * PROFIT_MARGIN_THRESHOLD >= saleTotal:
