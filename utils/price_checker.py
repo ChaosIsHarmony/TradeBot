@@ -28,7 +28,7 @@ def handle_price_check(logger: CustomLogger) -> None:
                     logger.price(f"{pair},{newPrice},{dailyDelta},{tickerObj['volume24hr']}")
 
         except Exception as e:
-            logger.program(f"Strategy:handle_price_check(): {e}")
+            logger.program(f"price_checker:handle_price_check(): {e}")
             apiCallsHaveBeenPaused = True
         finally:
             if apiCallsHaveBeenPaused:
