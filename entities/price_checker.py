@@ -8,9 +8,9 @@ PRICE_CHECK_FREQUENCY = 10
 
 
 class PriceChecker:
-    def __init__(self, logger: CustomLogger) -> None:
+    def __init__(self) -> None:
         self.apiCallsHaveBeenPaused = False
-        self.logger = logger
+        self.logger = create_logger()
         self.terminate = False
 
     def handle_price_check(self) -> None:
@@ -37,3 +37,6 @@ class PriceChecker:
                 else:
                     time.sleep(PRICE_CHECK_FREQUENCY) 
 
+
+priceChecker = PriceChecker()
+priceChecker.handle_price_check()
