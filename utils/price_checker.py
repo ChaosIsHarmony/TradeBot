@@ -38,5 +38,6 @@ class PriceChecker:
                     time.sleep(PRICE_CHECK_FREQUENCY) 
 
 
-priceChecker = PriceChecker()
-priceChecker.handle_price_check()
+if __name__ == "__main__":
+    priceChecker = PriceChecker()
+    priceChecker.handle_price_check()

@@ -9,7 +9,7 @@ CONDITIONS:
 import time
 from .. import common
 from .. import trade_bot as tb
-from ..entities.logger import *
+from ..utils.logger import *
 from ..entities.order import *
 from typing import Tuple
 

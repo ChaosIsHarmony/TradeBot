@@ -1,4 +1,5 @@
 import logging
+
 # CUSTOM LOG LEVELS
 TRADES_LOG_LEVEL = 7
 PROGRAM_LOG_LEVEL = 8

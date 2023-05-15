@@ -38,10 +38,10 @@ import time
 import threading
 from . import common
 from datetime import datetime
-from .entities.logger import *
-from .entities.authenticator import *
 from .entities.order import Order
-from .entities.price_checker import *
+from .utils.logger import *
+from .utils.authenticator import *
+from .utils.price_checker import *
 from .strategies.short_term_strategy import *
 from typing import List, Tuple
 
