@@ -6,12 +6,7 @@ ACTIONS = {
         "sell": "SELL"
         }
 
-PAIRS = {
-        "ADA": "ada_twd",
-        "BTC": "btc_twd",
-        "ETH": "eth_twd",
-        "SOL": "sol_twd"
-        }
+LOG_TO_CONSOLE = True
 
 ORDER_STATUS = {
         "-1": "Not Triggered",
@@ -21,6 +16,13 @@ ORDER_STATUS = {
         "3": "Completed (partial deal)",
         "4": "Cancelled",
         "6": "Post-only cancelled"
+        }
+
+PAIRS = {
+        "ADA": "ada_twd",
+        "BTC": "btc_twd",
+        "ETH": "eth_twd",
+        "SOL": "sol_twd"
         }
 
 PAUSE_CHECK_INTERVAL = 60 * 10 # pause API access for 10 minutes

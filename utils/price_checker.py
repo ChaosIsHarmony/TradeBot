@@ -1,43 +1,43 @@
+import math
 import time
-from .. import common
-from .. import trade_bot as tb
+from ..libs import common_lib as comLib
+from ..libs import parser_lib as parsLib
+from ..libs import rest_lib as restLib
 from .logger import *
 
 
-PRICE_CHECK_FREQUENCY = 10
+def handle_price_check(logger: CustomLogger) -> None:
+    PRICE_CHECK_FREQUENCY = 10
+    prevPrice = {pair: 0.0 for pair in comLib.PAIRS.values()}
+    apiCallsHaveBeenPaused = False
 
+    while True:
+        try:
+            for pair in comLib.PAIRS.values():
+                # check/log current price
+                tickerObj = restLib.get_asset_price(pair)
+                newPrice, dailyDelta = parsLib.parse_ticker_price(tickerObj)
 
-class PriceChecker:
-    def __init__(self) -> None:
-        self.apiCallsHaveBeenPaused = False
-        self.logger = create_logger()
-        self.terminate = False
+                if not math.isclose(newPrice, prevPrice[pair]):
+                    if comLib.LOG_TO_CONSOLE:
+                        print("\n------------------")
+                        print(f"New Price for {pair}:")
+                        print(f"{pair},{newPrice},{dailyDelta},{tickerObj['volume24hr']}")
+                        
+                    prevPrice[pair] = newPrice
+                    logger.price(f"{pair},{newPrice},{dailyDelta},{tickerObj['volume24hr']}")
 
-    def handle_price_check(self) -> None:
-        prevPrice = 0.0
-
-        while not self.terminate:
-            try:
-                for pair in common.PAIRS.values():
-                    # check/log current price
-                    tickerObj = tb.get_asset_price(pair)
-                    newPrice, dailyDelta = tb.parse_ticker_price(tickerObj)
-
-                    if newPrice != prevPrice:
-                        prevPrice = newPrice
-                        self.logger.price(f"{pair},{newPrice},{dailyDelta},{tickerObj['volume24hr']}")
-
-            except Exception as e:
-                self.logger.program(f"Strategy:handle_price_check(): {e}")
-                self.apiCallsHaveBeenPaused = True
-            finally:
-                if self.apiCallsHaveBeenPaused:
-                    time.sleep(common.PAUSE_CHECK_INTERVAL)
-                    self.apiCallsHaveBeenPaused = False
-                else:
-                    time.sleep(PRICE_CHECK_FREQUENCY) 
+        except Exception as e:
+            logger.program(f"Strategy:handle_price_check(): {e}")
+            apiCallsHaveBeenPaused = True
+        finally:
+            if apiCallsHaveBeenPaused:
+                time.sleep(comLib.PAUSE_CHECK_INTERVAL)
+                apiCallsHaveBeenPaused = False
+            else:
+                time.sleep(PRICE_CHECK_FREQUENCY) 
 
 
 if __name__ == "__main__":
-    priceChecker = PriceChecker()
-    priceChecker.handle_price_check()
+    logger = create_logger()
+    handle_price_check(logger)

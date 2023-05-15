@@ -4,14 +4,14 @@ CONDITIONS:
     - Sell when position has changed +/- 2%
     - Repeat until principal reaches below threshold
     - Take 5% profits when position has increased by 10%
-    - Delay purchase or sale while the daily delta is > 2.5% (FOR SELL) or < -2.5% (FOR BUY) 
+    - Always BUY at the beginning of the period and SELL at the end of the period
 """
 import time
-from ..entities.order import *
 from ..libs import common_lib as comLib
 from ..libs import parser_lib as parsLib
 from ..libs import rest_lib as restLib
 from ..utils.logger import *
+from ..entities.order import *
 from typing import Tuple
 
 
@@ -21,21 +21,18 @@ UPSIDE_DELTA = 1.02
 # DOWNSIDE_DELTA determines when to sell for a stop loss
 DOWNSIDE_DELTA = 0.98
 # BUY_CHECK_FREQUENCY determines the period of the trade (or at least when next to check for buying opportunity)
-BUY_CHECK_FREQUENCY = 60*60*3  # Check every three hours
+BUY_CHECK_FREQUENCY = 60*60*4  # Check every three hours
 
 SELL_CHECK_FREQUENCY = 5
 
 PROFIT_MARGIN_THRESHOLD = 1.1 # every time you make 10%, take profits
 PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of the increase as profits 
 
-DAILY_DELTA_THRESHOLD_HI = 2.5
-DAILY_DELTA_THRESHOLD_LO = -2.5
-
-class ShortTermStrategy():
+class AlwaysBuyAndSellStrategy():
     def __init__(self, principal: float = 1000.0) -> None:
         self.apiCallsHaveBeenPaused = False
         self.principal = principal 
-        self.mostRecentSellOrderId = '3277817517'
+        self.mostRecentSellOrderId = ""
         self.originalPurchasePrice = 0.0
         self.shouldPurchase = True
         self.setStopLimit = False
@@ -56,11 +53,14 @@ class ShortTermStrategy():
                 # (buffer of 100NTD in case there is a small residual balance)
                 self.shouldPurchase = twdBalance > 100 and self.principal > 100 
 
+                # if limit order hasn't triggered, force a sale
+                if not self.shouldPurchase and self.principal > 100:
+                    self._force_sale(pair)
                 if self.shouldPurchase:
                     self._perform_buy(pair, self.principal)
 
             except Exception as e:
-                self.logger.program(f"ShortTermStrategy:handle_buys(): {e}")
+                self.logger.program(f"AlwaysBuyAndSellStrategy:handle_buys(): {e}")
                 self.apiCallsHaveBeenPaused = True
             finally:
                 if self.apiCallsHaveBeenPaused:
@@ -91,7 +91,7 @@ class ShortTermStrategy():
                         self._perform_sale(pair, assetBalance)
 
             except Exception as e:
-                self.logger.program(f"ShortTermStrategy:handle_sales(): {e}")
+                self.logger.program(f"AlwaysBuyAndSellStrategy:handle_sales(): {e}")
                 self.apiCallsHaveBeenPaused = True
             finally:
                 if self.apiCallsHaveBeenPaused:
@@ -108,12 +108,7 @@ class ShortTermStrategy():
     def _perform_buy(self, pair: str, availableBalance: float) -> None:
         try:
             # determine trade price and amount
-            tmpPrice, dailyDelta = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
-
-            # if dailyDelta to the downside is too negative, then skip buying this period
-            if dailyDelta < DAILY_DELTA_THRESHOLD_LO:
-                self.logger.trades(f"skipped buy for this period because 24hr delta was too low: {dailyDelta}%")
-                return
+            tmpPrice, _ = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
 
             tmpPrice *= 1.1 # 1% > than last sale price to make it easier to buy quickly
             tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
@@ -137,31 +132,26 @@ class ShortTermStrategy():
                 self.logger.trades(f"originalPurchasePrice = {self.originalPurchasePrice}")
             else:
                 self.terminate = True
-                self.logger.program(f"ShortTermStrategy:_perform_buy(): Could not purchase {pair} @ {buyPrice} NTD for {buyAmount} coins.")
+                self.logger.program(f"AlwaysBuyAndSellStrategy:_perform_buy(): Could not purchase {pair} @ {buyPrice} NTD for {buyAmount} coins.")
         except Exception as e:
             raise e
 
         
     def _perform_sale(self, pair: str, assetBalance: float) -> None:
         try:
-            # delay sale if increase is too high (might go higher)
-            _, dailyDelta = parsLib.parse_ticker_price(restLib.get_asset_price(pair))
-            if dailyDelta > DAILY_DELTA_THRESHOLD_HI:
-                self.logger.trades(f"skipped buy for this period because 24hr delta was too high: {dailyDelta}%")
-                return
-
             # get best price for limit-order/stop-loss
             order_book = restLib.get_book_order_price(pair)
             hiBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
             loBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, True)
 
-            # place limit-order
-            if hiBidPrice > 0.0:
-                self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
-            # place stop-loss
-            elif loBidPrice > 0.0:
-                self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
- 
+            if hiBidPrice > 0.0 or loBidPrice > 0.0:
+                # place limit-order
+                if hiBidPrice > 0.0:
+                    self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
+                # place stop-loss
+                elif loBidPrice > 0.0:
+                    self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
+     
                 # reset relevant global variables
                 self.setStopLimit = False
         except Exception as e:
@@ -184,7 +174,7 @@ class ShortTermStrategy():
             # handle attempts
             attempts -= 1
             if attempts < 1:
-                self.logger.program("ShortTermStrategy:_find_satisfactory_ask(): Too many attempts to find satisfactory ask.")
+                self.logger.program("AlwaysBuyAndSellStrategy:_find_satisfactory_ask(): Too many attempts to find satisfactory ask.")
                 break
 
             time.sleep(0.25) # wait a bit and check again to see if there are new orders 
@@ -195,7 +185,7 @@ class ShortTermStrategy():
     def _place_buy_order(self, pair: str, buyAmount: float, buyPrice: float) -> bool:
         statusCode, orderId = restLib.create_order(Order(pair, comLib.ACTIONS["buy"], "limit", buyAmount, buyPrice))
         if statusCode != 200:
-            raise Exception(f"ShortTermStrategy:_place_buy_order():FAILED ORDER ERROR: Order status code - {statusCode}")
+            raise Exception(f"AlwaysBuyAndSellStrategy:_place_buy_order():FAILED ORDER ERROR: Order status code - {statusCode}")
         
         # check if order was filled
         attempts = 1000
@@ -204,7 +194,7 @@ class ShortTermStrategy():
             
             if mostRecentOrderId != orderId:
                 self.terminate = True
-                raise Exception(f"ShortTermStrategy:_place_buy_order():ORDER ERROR: mostRecentOrderId ({mostRecentOrderId}) is different from targetOrderId ({orderId}).")
+                raise Exception(f"AlwaysBuyAndSellStrategy:_place_buy_order():ORDER ERROR: mostRecentOrderId ({mostRecentOrderId}) is different from targetOrderId ({orderId}).")
 
             if mostRecentOrderStatus == 2: # Completed
                 return True
@@ -222,10 +212,47 @@ class ShortTermStrategy():
 
         # check to make sure the order has been filled 
         if not orderStatus == 2: # not Completed
-            raise Exception(f"ShortTermStrategy:_principal_handler():ORDER ERROR: attempted to readjust principal on an incomplete order: mostRecentSellOrderId = {self.mostRecentSellOrderId}.")
+            raise Exception(f"AlwaysBuyAndSellStrategy:_principal_handler():ORDER ERROR: attempted to readjust principal on an incomplete order: mostRecentSellOrderId = {self.mostRecentSellOrderId}.")
 
         # if principal has reached threshold, reset it to the reflect profit taking
         if self.principal * PROFIT_MARGIN_THRESHOLD >= saleTotal:
             self.principal = saleTotal * PROFIT_MARGIN_AMOUNT
         else:
             self.principal = saleTotal
+
+
+    def _force_sale(self, pair: str) -> None:
+        # reset relevant global variables
+        self.setStopLimit = False
+
+        while True:
+            try:
+                # check if there is a balance of given asset 
+                asset = pair[:pair.find("_")] # parse asset
+                acctBalances = restLib.get_balance()
+                _, assetBalance = parsLib.parse_balance(acctBalances, asset)
+
+                # otherwise, check if should set a stop loss or limit order
+                # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
+                if not self.shouldPurchase: 
+                    self._perform_sale(pair, assetBalance)
+
+                # determine trade price and amount
+                tmpPrice, _ = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
+ 
+                # get best price for limit-order/stop-loss
+                order_book = restLib.get_book_order_price(pair)
+                loBidPrice = parsLib.parse_order_book_orders(order_book, tmpPrice * 0.99, assetBalance, True)
+
+                # place limit-order
+                if loBidPrice > 0.0:
+                    self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
+                   break
+
+            except Exception as e:
+                self.logger.program(f"AlwaysBuyAndSellStrategy:_force_sale(): {e}")
+                self.apiCallsHaveBeenPaused = True
+            finally:
+                if self.apiCallsHaveBeenPaused:
+                    time.sleep(comLib.PAUSE_CHECK_INTERVAL)
+                    self.apiCallsHaveBeenPaused = False
