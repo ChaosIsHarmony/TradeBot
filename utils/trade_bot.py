@@ -18,12 +18,12 @@ if __name__ == "__main__":
     print("INITIATING PROGRAM")
     print("------------------")
 
-    pair = comLib.PAIRS["ADA"]
+    pair = comLib.PAIRS["ETH"]
 
     print("\n------------------")
     print("LOADING STRATEGY")
 
-    strategy = ShortTermStrategy(principal=1000.0)
+    strategy = ShortTermStrategy(principal=1990.0)
 
     print("\n------------------")
     print("CREATING THREADS")

@@ -35,7 +35,7 @@ class ShortTermStrategy():
     def __init__(self, principal: float = 1000.0) -> None:
         self.apiCallsHaveBeenPaused = False
         self.principal = principal 
-        self.mostRecentSellOrderId = '3277817517'
+        self.mostRecentSellOrderId = ''
         self.originalPurchasePrice = 0.0
         self.shouldPurchase = True
         self.setStopLimit = False
@@ -115,7 +115,7 @@ class ShortTermStrategy():
                 self.logger.trades(f"skipped buy for this period because 24hr delta was too low: {dailyDelta}%")
                 return
 
-            tmpPrice *= 1.1 # 1% > than last sale price to make it easier to buy quickly
+            tmpPrice *= 1.01 # 1% > than last sale price to make it easier to buy quickly
             tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
 
             # keep querying until appropriate order appears 
@@ -189,6 +189,7 @@ class ShortTermStrategy():
 
             time.sleep(0.25) # wait a bit and check again to see if there are new orders 
         
+
         return (buyPrice, buyAmount)
 
 

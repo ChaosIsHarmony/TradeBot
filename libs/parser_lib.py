@@ -75,11 +75,13 @@ def parse_ticker_price(tickerObj: object) -> Tuple[float, float]:
     performs: prints last sale price
     returns: lastPrice and 24hr delta as a floats
     """
+    """
     if comLib.LOG_TO_CONSOLE:
         print("\n------------------")
         print("Parsed Ticker Price:")
         print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
         print(f"24-delta: {tickerObj['priceChange24hr']}%")
+    """
 
     return (float(tickerObj['lastPrice']), float(tickerObj['priceChange24hr']))
 
@@ -97,7 +99,7 @@ def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float
                 if comLib.LOG_TO_CONSOLE:
                     print("\n------------------")
                     print("Found appropriate bid:")
-                    print(f"price = {float(bid['price'])}")
+                    print(f"price = {bid['price']}")
                 return float(bid["price"])
     else:
         for ask in orderBook["asks"]:
@@ -105,7 +107,7 @@ def parse_order_book_orders(orderBook: object, targetPrice: float, amount: float
                 if comLib.LOG_TO_CONSOLE:
                     print("\n------------------")
                     print("Found appropriate ask:")
-                    print(f"price = {float(bid['price'])}")
+                    print(f"price = {ask['price']}")
                 return float(ask["price"])
 
     return -1.0
