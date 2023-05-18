@@ -23,7 +23,11 @@ if __name__ == "__main__":
     print("\n------------------")
     print("LOADING STRATEGY")
 
+<<<<<<< HEAD
     strategy = ShortTermStrategy(upsideDelta=0.005,downsideDelta=0.02,buyFrequency=3)
+=======
+    strategy = ShortTermStrategy(principal=1990.0)
+>>>>>>> 1cbbede4687a191c598e090728635e3039fa0536
 
     print("\n------------------")
     print("CREATING THREADS")

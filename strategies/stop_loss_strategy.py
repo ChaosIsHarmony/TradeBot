@@ -103,7 +103,7 @@ class StopLossStrategy():
             # determine trade price and amount
             tmpPrice, _ = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
 
-            tmpPrice *= 1.1 # 1% > than last sale price to make it easier to buy quickly
+            tmpPrice *= 1.01 # 1% > than last sale price to make it easier to buy quickly
             tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
 
             # keep querying until appropriate order appears 
