@@ -1,4 +1,4 @@
-# CONSTS
+# CONSTANTS
 API_BASE_URL = "https://api.bitopro.com/v3"
 
 ACTIONS = {
@@ -26,3 +26,5 @@ PAIRS = {
         }
 
 PAUSE_CHECK_INTERVAL = 60 * 10 # pause API access for 10 minutes
+
+SELL_CHECK_FREQUENCY = 5 # 5 seconds

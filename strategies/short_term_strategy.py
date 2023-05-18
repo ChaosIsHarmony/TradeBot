@@ -15,40 +15,46 @@ from ..utils.logger import *
 from typing import Tuple
 
 
-# These three values are the heart of the strategy:
-# UPSIDE_DELTA determines when to sell for a profit
-UPSIDE_DELTA = 1.02
-# DOWNSIDE_DELTA determines when to sell for a stop loss
-DOWNSIDE_DELTA = 0.98
-# BUY_CHECK_FREQUENCY determines the period of the trade (or at least when next to check for buying opportunity)
-BUY_CHECK_FREQUENCY = 60*60*3  # Check every three hours
-
-SELL_CHECK_FREQUENCY = 5
-
-PROFIT_MARGIN_THRESHOLD = 1.1 # every time you make 10%, take profits
-PROFIT_MARGIN_AMOUNT = 1 - ((PROFIT_MARGIN_THRESHOLD - 1) / 2) # take half of the increase as profits 
-
-DAILY_DELTA_THRESHOLD_HI = 2.5
-DAILY_DELTA_THRESHOLD_LO = -2.5
-
 class ShortTermStrategy():
-    def __init__(self, principal: float = 1000.0) -> None:
+    def __init__(self, upsideDelta: float, downsideDelta: float, buyFrequency: int, profitMarginThreshold: float = 0.1, dailyDeltaThresholdLo: float = -0.025) -> None:
+        """
+        params: 
+            - upsideDelta is the percentage of when to sell for a profit
+            - downsideDelta is the percentage of when to sell for a stop loss
+            - buyFrequency is the interval of hours between checking for buying opportunities
+            - profitMarginThreshold is when to take profits (default after an increase of 10% in principal)
+            - dailyDeltaThresholdLo signals when to delay a purchase
+        """
+        # basic setup
         self.apiCallsHaveBeenPaused = False
-        self.principal = principal 
-        self.mostRecentSellOrderId = '3277817517'
+        self.logger = create_logger()
+        self.mostRecentSellOrderId = ""
         self.originalPurchasePrice = 0.0
+        self.principal = self._get_available_balance()
         self.shouldPurchase = True
         self.setStopLimit = False
         self.terminate = False # for terminating due to errant/unexpected behavior
-        self.logger = create_logger()
+
+        # These three values are the heart of the strategy:
+        # determines multiple of principal when to sell for a profit
+        self.upsideDelta = 1 + upsideDelta
+        # determines multiple of principal when to sell for a stop loss
+        self.downsideDelta = 1 - downsideDelta
+        # determines the period of the trade (or at least when next to check for buying opportunity)
+        self.buyFrequency = 60*60*buyFrequency  # Check every three hours
+
+
+        self.profitMarginThreshold = 1 + profitMarginThreshold # every time you make 10%, take profits
+        self.profitMarginAmount = 1 - ((self.profitMarginThreshold - 1) / 2) # take half of the increase as profits 
+        # Avoid purchase if price has dropped by more than threshold in 24hr period (might go lower) 
+        self.dailyDeltaThresholdLo = dailyDeltaThresholdLo * 100 # Bito gives it back in percent (%)
 
 
     def handle_buys(self, pair: str) -> None:
         while not self.terminate:
             try:
                 # determine amount of dry powder available
-                acctBalances = restLib.get_balance()
-                twdBalance, _ = parsLib.parse_balance(acctBalances, "twd")
+                twdBalance = self._get_available_balance()
             
                 # if there are insufficient funds, don't purchase
                 # either limit order/stop loss have not triggered,
@@ -67,14 +73,15 @@ class ShortTermStrategy():
                     time.sleep(comLib.PAUSE_CHECK_INTERVAL)
                     self.apiCallsHaveBeenPaused = False
                 else:
-                    time.sleep(BUY_CHECK_FREQUENCY) 
+                    time.sleep(self.buyFrequency) 
  
     
     def handle_sales(self, pair: str) -> None:
         while not self.terminate:
             try:
-                if self.setStopLimit:
-                    # check if there is a balance of given asset 
+                if not self.shouldPurchase:
+                    # check if there is a balance of given asset
+                    # uses totalBalance instead of availableBalance because when a sell order is placed, the availableBalance is less than the totalBalance until the order has been filled
                     asset = pair[:pair.find("_")] # parse asset
                     acctBalances = restLib.get_balance()
                     _, assetBalance = parsLib.parse_balance(acctBalances, asset)
@@ -87,7 +94,7 @@ class ShortTermStrategy():
 
                     # otherwise, check if should set a stop loss or limit order
                     # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
-                    if not self.shouldPurchase: 
+                    if self.setStopLimit: 
                         self._perform_sale(pair, assetBalance)
 
             except Exception as e:
@@ -98,7 +105,7 @@ class ShortTermStrategy():
                     time.sleep(comLib.PAUSE_CHECK_INTERVAL)
                     self.apiCallsHaveBeenPaused = False
                 else:
-                    time.sleep(SELL_CHECK_FREQUENCY) 
+                    time.sleep(comLib.SELL_CHECK_FREQUENCY) 
  
  
 
@@ -111,7 +118,7 @@ class ShortTermStrategy():
             tmpPrice, dailyDelta = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
 
             # if dailyDelta to the downside is too negative, then skip buying this period
-            if dailyDelta < DAILY_DELTA_THRESHOLD_LO:
+            if dailyDelta < self.dailyDeltaThresholdLo:
                 self.logger.trades(f"skipped buy for this period because 24hr delta was too low: {dailyDelta}%")
                 return
 
@@ -144,24 +151,19 @@ class ShortTermStrategy():
         
     def _perform_sale(self, pair: str, assetBalance: float) -> None:
         try:
-            # delay sale if increase is too high (might go higher)
-            _, dailyDelta = parsLib.parse_ticker_price(restLib.get_asset_price(pair))
-            if dailyDelta > DAILY_DELTA_THRESHOLD_HI:
-                self.logger.trades(f"skipped buy for this period because 24hr delta was too high: {dailyDelta}%")
-                return
-
             # get best price for limit-order/stop-loss
             order_book = restLib.get_book_order_price(pair)
-            hiBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * UPSIDE_DELTA, assetBalance, True)
-            loBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * DOWNSIDE_DELTA, assetBalance, True)
+            hiBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * self.upsideDelta, assetBalance, True)
+            loBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * self.downsideDelta, assetBalance, True)
 
             # place limit-order
             if hiBidPrice > 0.0:
                 self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
+                # reset relevant global variables
+                self.setStopLimit = False
             # place stop-loss
             elif loBidPrice > 0.0:
                 self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
- 
                 # reset relevant global variables
                 self.setStopLimit = False
         except Exception as e:
@@ -217,6 +219,13 @@ class ShortTermStrategy():
 
 
     def _principal_handler(self, pair: str) -> None:
+        """
+        params: asset pair as a str
+        performs: 
+            - check to see if order has completed
+            - takes profits if has reached profitMarginThreshold
+            - readjusts principal to reflect how much is available for trades
+        """
         # get most recent order for pair price
         saleTotal, orderStatus = parsLib.parse_order_total(restLib.get_order_by_id(pair, self.mostRecentSellOrderId))
 
@@ -225,7 +234,17 @@ class ShortTermStrategy():
             raise Exception(f"ShortTermStrategy:_principal_handler():ORDER ERROR: attempted to readjust principal on an incomplete order: mostRecentSellOrderId = {self.mostRecentSellOrderId}.")
 
         # if principal has reached threshold, reset it to the reflect profit taking
-        if self.principal * PROFIT_MARGIN_THRESHOLD >= saleTotal:
-            self.principal = saleTotal * PROFIT_MARGIN_AMOUNT
+        if self.principal * self.profitMarginThreshold >= saleTotal:
+            self.principal = saleTotal * self.profitMarginAmount
         else:
             self.principal = saleTotal
+
+
+    def _get_available_balance(self) -> float:
+        """
+        returns: avaialble dry powder for purchases
+        """
+        acctBalances = restLib.get_balance()
+        twdBalance, _ = parsLib.parse_balance(acctBalances, "twd")
+        
+        return twdBalance

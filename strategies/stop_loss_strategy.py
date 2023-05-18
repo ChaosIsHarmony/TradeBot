@@ -11,19 +11,22 @@ from ..libs import rest_lib as restLib
 from ..utils.logger import *
 from typing import Tuple
 
-STOP_LOSS = 0.85 # 15% stop loss
-
 BUY_CHECK_FREQUENCY = 60 * 5 # wait five minutes
-SELL_CHECK_FREQUENCY = 5
+SELL_CHECK_FREQUENCY_LONG = 60 * 30 # limit checks to every 30 minutes until it drops to -5% from peak
+SELL_CHECK_FREQUENCY_MED = 60 # limit checks to every minute until it drops to -10% from peak
+SELL_CHECK_FREQUENCY_SHORT = 2 # limit checks to every 2 seconds until it drops to -15% from peak
+
 
 class StopLossStrategy():
-    def __init__(self) -> None:
+    def __init__(self, stopLossThreshold: float) -> None:
         self.apiCallsHaveBeenPaused = False
         self.mostRecentSellOrderId = ""
         self.peakPrice = 0.0
         self.setStopLimit = False
         self.terminate = False # for terminating due to errant/unexpected behavior
         self.logger = create_logger() 
+        self.stopLossThreshold = stopLossThreshold
+        self.stopLossPercentage = 1 - stopLossThreshold
 
 
     def handle_buys(self, pair: str) -> None:
@@ -50,23 +53,31 @@ class StopLossStrategy():
     
     def handle_sales(self, pair: str) -> None:
         while not self.terminate:
+            lastPrice = 0.0
+
             try:
                 # check if there is a balance of given asset 
                 asset = pair[:pair.find("_")] # parse asset
                 acctBalances = restLib.get_balance()
                 _, assetBalance = parsLib.parse_balance(acctBalances, asset)
 
-                if assetBalance < 0.0001:
+                if assetBalance > 0.0001:
                     # check if should set a stop loss
                     if self.setStopLimit:
-                        # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
-                        self._perform_sale(pair, assetBalance)
-                    # check to see if sale has succeeded
+                        # determine latest price
+                        lastPrice, _ = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
+                        # readjust peakPrice if lastPrice exceeds it
+                        if lastPrice > self.peakPrice:
+                            self.peakPrice = lastPrice
+         
+                        # Bito's StopLimit endpoint in their API doesn't actually trigger when it should...
+                        self._perform_sale(pair, assetBalance, lastPrice)
+                # check to see if sale has succeeded
+                # TODO: Make a self-healing protocol that if it has sold after n times, then lower the sale price to avoid further losses
                 else:
                     totalSale, orderStatus  = parsLib.parse_order_total(restLib.get_order_by_id(pair, self.mostRecentSellOrderId))
                     if comLib.ORDER_STATUS[str(orderStatus)] == "Completed":
                         self.logger.trades(f"SELL,{pair},{totalSale}")
-
             except Exception as e:
                 self.logger.program(f"StopLossStrategy:handle_sales(): {e}")
                 self.apiCallsHaveBeenPaused = True
@@ -75,7 +86,12 @@ class StopLossStrategy():
                     time.sleep(comLib.PAUSE_CHECK_INTERVAL)
                     self.apiCallsHaveBeenPaused = False
                 else:
-                    time.sleep(SELL_CHECK_FREQUENCY) 
+                    if lastPrice < ((2/3) * self.stopLossPercentage * self.peakPrice):
+                        time.sleep(SELL_CHECK_FREQUENCY_SHORT)
+                    elif lastPrice < ((1/3) * self.stopLossPercentage * self.peakPrice):
+                        time.sleep(SELL_CHECK_FREQUENCY_MED)
+                    else:
+                        time.sleep(SELL_CHECK_FREQUENCY_LONG)
  
  
 
@@ -92,6 +108,7 @@ class StopLossStrategy():
 
             # keep querying until appropriate order appears 
             buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice, tmpAmount, availableBalance)
+
             # if failed to find appropriate ask, wait and then try again 
             if buyPrice < 0.0:
                 time.sleep(comLib.PAUSE_CHECK_INTERVAL)
@@ -112,23 +129,20 @@ class StopLossStrategy():
             raise e
 
         
-    def _perform_sale(self, pair: str, assetBalance: float) -> None:
+    def _perform_sale(self, pair: str, assetBalance: float, lastPrice: float) -> None:
         try:
-            # determin latest price
-            lastPrice, _ = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
-            if lastPrice > self.peakPrice:
-                self.peakPrice = lastPrice
+            # if it has reached the sale threshold
+            if lastPrice <= self.peakPrice * self.stopLossThreshold:
+                # get best price for stop-loss
+                order_book = restLib.get_book_order_price(pair)
+                hiBidPrice = parsLib.parse_order_book_orders(order_book, self.peakPrice * self.stopLossThreshold, assetBalance, True)
 
-            # get best price for stop-loss
-            order_book = restLib.get_book_order_price(pair)
-            hiBidPrice = parsLib.parse_order_book_orders(order_book, self.peakPrice * STOP_LOSS, assetBalance, True)
-
-            # place stop-loss
-            if hiBidPrice > 0.0:
-                self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
-     
-                # reset relevant global variables
-                self.setStopLimit = False
+                # place stop-loss
+                if hiBidPrice > 0.0:
+                    self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
+         
+                    # reset relevant global variables
+                    self.setStopLimit = False
         except Exception as e:
             raise e
 
