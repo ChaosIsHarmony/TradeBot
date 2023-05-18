@@ -196,7 +196,7 @@ class ShortTermStrategy():
 
 
     def _place_buy_order(self, pair: str, buyAmount: float, buyPrice: float) -> bool:
-        statusCode, orderId = restLib.create_order(Order(pair, comLib.ACTIONS["buy"], "limit", buyAmount, buyPrice))
+        orderId, statusCode = restLib.create_order(Order(pair, comLib.ACTIONS["buy"], "limit", buyAmount, buyPrice))
         if statusCode != 200:
             raise Exception(f"ShortTermStrategy:_place_buy_order():FAILED ORDER ERROR: Order status code - {statusCode}")
         
