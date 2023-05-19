@@ -60,7 +60,7 @@ class ShortTermStrategy():
                 # either limit order/stop loss have not triggered,
                 # or strategy has failed
                 # (buffer of 100NTD in case there is a small residual balance)
-                self.shouldPurchase = twdBalance > 100 and self.principal > 100 
+                self.shouldPurchase = (twdBalance > 100) and (self.principal > 100) and self.shouldPurchase 
 
                 if self.shouldPurchase:
                     self._perform_buy(pair, self.principal)
@@ -84,18 +84,18 @@ class ShortTermStrategy():
                     # uses totalBalance instead of availableBalance because when a sell order is placed, the availableBalance is less than the totalBalance until the order has been filled
                     asset = pair[:pair.find("_")] # parse asset
                     acctBalances = restLib.get_balance()
-                    _, assetBalance = parsLib.parse_balance(acctBalances, asset)
+                    _, availableAssetBalance = parsLib.parse_balance(acctBalances, asset)
 
                     # if asset balance is nearly 0, then it implies the sale has succeeded
                     # buffer in case there is a small residual balance
-                    if assetBalance < 0.0001:
+                    if availableAssetBalance < 0.0001:
                         self._principal_handler(pair)
                         self.shouldPurchase = True
 
                     # otherwise, check if should set a stop loss or limit order
                     # Bito has a StopLimit endpoint in their API, the problem is, it doesn't actually trigger when it should...
                     if self.setStopLimit: 
-                        self._perform_sale(pair, assetBalance)
+                        self._perform_sale(pair, availableAssetBalance)
 
             except Exception as e:
                 self.logger.program(f"ShortTermStrategy:handle_sales(): {e}")
@@ -117,10 +117,11 @@ class ShortTermStrategy():
             # determine trade price and amount
             tmpPrice, dailyDelta = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
 
-            # if dailyDelta to the downside is too negative, then skip buying this period
+            # if dailyDelta to the downside is too negative, then delay buying this period
             if dailyDelta < self.dailyDeltaThresholdLo:
-                self.logger.trades(f"skipped buy for this period because 24hr delta was too low: {dailyDelta}%")
-                return
+                self.logger.trades(f"Delaying buy for this for {comLib.PAUSE_CHECK_INTERVAL/60} mins. because 24hr delta was too low: {dailyDelta}%")
+                time.sleep(comLib.PAUSE_CHECK_INTERVAL)
+                self._perform_buy(pair, availableBalance)
 
             tmpPrice *= 1.01 # 1% > than last sale price to make it easier to buy quickly
             tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
@@ -129,6 +130,7 @@ class ShortTermStrategy():
             buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice, tmpAmount, availableBalance)
             # if failed to find appropriate ask, wait and then try again 
             if buyPrice < 0.0:
+                self.logger.trades(f"Delaying buy for this for {comLib.PAUSE_CHECK_INTERVAL/60} mins. because could not find satisfactory ask: thresholds - price = {tmpPrice} | amount = {tmpAmount}")
                 time.sleep(comLib.PAUSE_CHECK_INTERVAL)
                 self._perform_buy(pair, availableBalance)
 
@@ -159,13 +161,11 @@ class ShortTermStrategy():
             # place limit-order
             if hiBidPrice > 0.0:
                 self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
-                # reset relevant global variables
-                self.setStopLimit = False
+                self.setStopLimit = False # set here so that it doesn't keep trying to buy
             # place stop-loss
             elif loBidPrice > 0.0:
                 self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
-                # reset relevant global variables
-                self.setStopLimit = False
+                self.setStopLimit = False # set here so that it doesn't keep trying to buy
         except Exception as e:
             raise e
 
@@ -196,13 +196,19 @@ class ShortTermStrategy():
 
 
     def _place_buy_order(self, pair: str, buyAmount: float, buyPrice: float) -> bool:
+        """
+        params: asset pair as str; amount to buy as float; price to by at as float
+        performs: creates an order for asset with given params
+        returns: a bool of whether or not the order was successfully filled
+        """
         orderId, statusCode = restLib.create_order(Order(pair, comLib.ACTIONS["buy"], "limit", buyAmount, buyPrice))
         if statusCode != 200:
             raise Exception(f"ShortTermStrategy:_place_buy_order():FAILED ORDER ERROR: Order status code - {statusCode}")
         
         # check if order was filled
         attempts = 1000
-        while True:
+        purchaseSuccessful = False
+        while attempts > 1:
             mostRecentOrderId, mostRecentOrderStatus = parsLib.parse_most_recent_order(restLib.get_orders(pair))
             
             if mostRecentOrderId != orderId:
@@ -210,13 +216,14 @@ class ShortTermStrategy():
                 raise Exception(f"ShortTermStrategy:_place_buy_order():ORDER ERROR: mostRecentOrderId ({mostRecentOrderId}) is different from targetOrderId ({orderId}).")
 
             if mostRecentOrderStatus == 2: # Completed
-                return True
+                purchaseSuccessful = True
+                break
 
             attempts -= 1
-            if attempts < 1:
-                return False
 
             time.sleep(0.5) # try again after waiting
+
+        return purchaseSuccessful
 
 
     def _principal_handler(self, pair: str) -> None:
@@ -243,9 +250,12 @@ class ShortTermStrategy():
 
     def _get_available_balance(self) -> float:
         """
-        returns: avaialble dry powder for purchases
+        returns: avaialble dry powder for purchases (in TWD)
         """
         acctBalances = restLib.get_balance()
-        twdBalance, _ = parsLib.parse_balance(acctBalances, "twd")
+        try:
+            twdBalance, _ = parsLib.parse_balance(acctBalances, "twd")
+        except Exception as e:
+            raise Exception(f"ShortTermStrategy:_get_available_balance(): {e}")
         
         return twdBalance

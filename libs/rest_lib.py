@@ -103,10 +103,10 @@ def get_asset_price(pair: str) -> float:
 def get_book_order_price(pair: str) -> object:
     """
     params: trading pair (e.g., btc_twd)
-    performs: gets most recent book order price for specified asset
+    performs: gets the most recent book order price for specified asset
     returns: bids and asks as a dictionary
     """
-    endpoint = f"/order-book/{pair}?limit=10"
+    endpoint = f"/order-book/{pair}?limit=1"
     response = requests.get(comLib.API_BASE_URL+endpoint)
 
     if response.status_code != 200:

@@ -18,7 +18,7 @@ if __name__ == "__main__":
     print("INITIATING PROGRAM")
     print("------------------")
 
-    pair = comLib.PAIRS["ETH"]
+    pair = comLib.PAIRS["SOL"]
 
     print("\n------------------")
     print("LOADING STRATEGY")
