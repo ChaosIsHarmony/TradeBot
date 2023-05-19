@@ -167,19 +167,18 @@ def create_order(order: Order) -> Tuple[str, int]:
             print(response.json())
 
         result = response.json()
-        orderId = result["id"]
+        orderId = result["orderId"]
 
-        logStr = f"\nID: {result['id']}\n" 
+        logStr = f"\nID: {result['orderId']}\n" 
         logStr += f"action: {result['action']}\n" 
-        logStr += f"type: {result['type']}\n"
-        logStr += f"Limit-Order Price: {result['price']}\n"
-        logStr += f"Last updated: {datetime.fromtimestamp(int(result['updatedTimestamp']/1000))}\n"
-        logStr += f"Order status: {comLib.ORDER_STATUS[str(result['status'])]}"
+        logStr += f"Price: {result['price']}\n"
+        logStr += f"Amount: {result['amount']}\n"
+        logStr += f"Created on: {datetime.fromtimestamp(int(result['timestamp']/1000))}\n"
         logger.trades(logStr)
     except Exception as e:
         raise Exception(f"rest_lib:create_order(): Unparsable JSON; check response status code: {e}")
-    finally:
-        return (orderId, response.status_code)
+
+    return (orderId, response.status_code)
 
 
 
