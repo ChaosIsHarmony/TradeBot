@@ -131,14 +131,16 @@ class ShortTermStrategy():
 
             # keep querying until appropriate order appears 
             tmpPrice *= 1.01 # 1% > than last sale price to make it easier to buy quickly
-            buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice, principal)
+            buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice)
             # if failed to find appropriate ask, wait and then try again 
             if buyPrice < 0.0:
                 self.logger.trades(f"Delaying buy for this for 2 secs. because could not find satisfactory ask: thresholds - price = {tmpPrice}")
                 time.sleep(2)
                 self._perform_buy(pair, principal)
 
-            # place order
+            # place order (first make sure amount does not exceed available principal)
+            if buyAmount > principal:
+                buyAmount = principal
             purchaseSuccessful = self._place_buy_order(pair, buyAmount, buyPrice)
 
             # reset relevant global variables
@@ -184,7 +186,7 @@ class ShortTermStrategy():
             raise e
 
 
-    def _find_satisfactory_ask(self, pair: str, tmpPrice: float, availableBalance) -> Tuple[float, float]:
+    def _find_satisfactory_ask(self, pair: str, tmpPrice: float) -> Tuple[float, float]:
         buyPrice = -1.0
         buyAmount = 0.0
 
