@@ -144,25 +144,7 @@ class ShortTermStrategy():
             purchaseSuccessful = self._place_buy_order(pair, buyAmount, buyPrice)
 
             # reset relevant global variables
-            if purchaseSuccessful:
-                self.aggAmount += buyAmount
-                self.aggPrice += buyPrice
-                self.nBuys += 1
-                principalRemaining = round(principal - ((self.aggPrice/self.nBuys)*self.aggAmount), 4) - 0.0001
-                # check to see if all remaining principal has been used (w/ slight buffer to prevent overspending)
-                if principalRemaining < 0.0001:
-                    self.originalPurchasePrice = self.aggPrice/self.nBuys # amortized price
-                    self.shouldPurchase = False
-                    self.setStopLimit = True
-                # try to buy more after brief interval
-                else:
-                    time.sleep(3)
-                    self._perform_buy(pair, principalRemaining)
-                # log successful trade
-                self.logger.trades(f"originalPurchasePrice = {self.originalPurchasePrice}")
-            else:
-                self.terminate = True
-                self.logger.program(f"ShortTermStrategy:_perform_buy(): Could not purchase {pair} @ {buyPrice} NTD for {buyAmount} coins.")
+            self._purchase_result_handler(purchaseSuccessful, pair, buyAmount, buyPrice, principal)
         except Exception as e:
             raise e
 
@@ -171,17 +153,30 @@ class ShortTermStrategy():
         try:
             # get best price for limit-order/stop-loss
             order_book = restLib.get_book_order_price(pair)
-            hiBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * self.upsideDelta, assetBalance, True)
-            loBidPrice = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * self.downsideDelta, assetBalance, True)
+            hiBidPrice, hiBidAmount = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * self.upsideDelta, True)
+            loBidPrice, loBidAmount = parsLib.parse_order_book_orders(order_book, self.originalPurchasePrice * self.downsideDelta, True)
 
             # place limit-order
             if hiBidPrice > 0.0:
                 self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, hiBidPrice))
-                self.setStopLimit = False # set here so that it doesn't keep trying to buy
+                # sold everything
+                if hiBidAmount >= assetBalance:
+                    self.setStopLimit = False # set here so that it doesn't keep trying to buy
+                # there remain assets to sell
+                else:
+                    time.sleep(2)
+                    self._perform_sale(pair, assetBalance - hiBidAmount)
             # place stop-loss
             elif loBidPrice > 0.0:
                 self.mostRecentSellOrderId, _ = restLib.create_order(Order(pair, comLib.ACTIONS["sell"], "limit", assetBalance, loBidPrice))
-                self.setStopLimit = False # set here so that it doesn't keep trying to buy
+                # sold everything
+                if loBidAmount >= assetBalance:
+                    self.setStopLimit = False # set here so that it doesn't keep trying to buy
+                # there remain assets to sell
+                else:
+                    time.sleep(2)
+                    self._perform_sale(pair, assetBalance - loBidAmount)
+
         except Exception as e:
             raise e
 
@@ -269,3 +264,29 @@ class ShortTermStrategy():
             raise Exception(f"ShortTermStrategy:_get_available_balance(): {e}")
         
         return twdBalance
+
+    def _purchase_result_handler(self, purchaseSuccessful: bool, pair: str, buyAmount: float, buyPrice: float, principal: float) -> None:
+        # purchase succeeded
+        if purchaseSuccessful:
+            self.aggAmount += buyAmount
+            self.aggPrice += buyPrice
+            self.nBuys += 1
+
+            # check to see if all remaining principal has been used (w/ slight buffer to prevent overspending)
+            principalRemaining = round(principal - ((self.aggPrice/self.nBuys)*self.aggAmount), 4) - 0.0001
+            if principalRemaining < 0.0001:
+                self.originalPurchasePrice = self.aggPrice/self.nBuys # amortized price
+                self.shouldPurchase = False
+                self.setStopLimit = True
+            # try to buy more after brief interval
+            else:
+                time.sleep(3)
+                self._perform_buy(pair, principalRemaining)
+
+            # log successful trade
+            self.logger.trades(f"originalPurchasePrice = {self.originalPurchasePrice}")
+        # an error occurred
+        else:
+            self.terminate = True
+            self.logger.program(f"ShortTermStrategy:_perform_buy(): Could not purchase {pair} @ {buyPrice} NTD for {buyAmount} coins.")
+
