@@ -26,10 +26,13 @@ class ShortTermStrategy():
             - dailyDeltaThresholdLo signals when to delay a purchase
         """
         # basic setup
+        self.aggAmount = 0.0
+        self.aggPrice = 0.0
         self.apiCallsHaveBeenPaused = False
         self.logger = create_logger()
         self.mostRecentSellOrderId = ""
         self.originalPurchasePrice = 0.0
+        self.nBuys = 0
         self.principal = self._get_available_balance()
         self.shouldPurchase = True
         self.setStopLimit = False
@@ -42,7 +45,6 @@ class ShortTermStrategy():
         self.downsideDelta = 1 - downsideDelta
         # determines the period of the trade (or at least when next to check for buying opportunity)
         self.buyFrequency = 60*60*buyFrequency  # Check every three hours
-
 
         self.profitMarginThreshold = 1 + profitMarginThreshold # every time you make 10%, take profits
         self.profitMarginAmount = 1 - ((self.profitMarginThreshold - 1) / 2) # take half of the increase as profits 
@@ -63,6 +65,10 @@ class ShortTermStrategy():
                 self.shouldPurchase = (twdBalance > 100) and (self.principal > 100) and self.shouldPurchase 
 
                 if self.shouldPurchase:
+                    # reset aggregate price and number of buys
+                    self.aggAmount = 0.0
+                    self.aggPrice = 0.0
+                    self.nBuys = 0
                     self._perform_buy(pair, self.principal)
 
             except Exception as e:
@@ -112,7 +118,7 @@ class ShortTermStrategy():
     # ----------------------
     # PRIVATE HELPER METHODS
     # ----------------------
-    def _perform_buy(self, pair: str, availableBalance: float) -> None:
+    def _perform_buy(self, pair: str, principal: float) -> None:
         try:
             # determine trade price and amount
             tmpPrice, dailyDelta = parsLib.parse_ticker_price(restLib.get_asset_price(pair)) 
@@ -121,27 +127,35 @@ class ShortTermStrategy():
             if dailyDelta < self.dailyDeltaThresholdLo:
                 self.logger.trades(f"Delaying buy for this for {comLib.PAUSE_CHECK_INTERVAL/60} mins. because 24hr delta was too low: {dailyDelta}%")
                 time.sleep(comLib.PAUSE_CHECK_INTERVAL)
-                self._perform_buy(pair, availableBalance)
-
-            tmpPrice *= 1.01 # 1% > than last sale price to make it easier to buy quickly
-            tmpAmount = availableBalance/tmpPrice # the max amt we can purchase with available dry powder
+                self._perform_buy(pair, principal)
 
             # keep querying until appropriate order appears 
-            buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice, tmpAmount, availableBalance)
+            tmpPrice *= 1.01 # 1% > than last sale price to make it easier to buy quickly
+            buyPrice, buyAmount = self._find_satisfactory_ask(pair, tmpPrice, principal)
             # if failed to find appropriate ask, wait and then try again 
             if buyPrice < 0.0:
-                self.logger.trades(f"Delaying buy for this for {comLib.PAUSE_CHECK_INTERVAL/60} mins. because could not find satisfactory ask: thresholds - price = {tmpPrice} | amount = {tmpAmount}")
-                time.sleep(comLib.PAUSE_CHECK_INTERVAL)
-                self._perform_buy(pair, availableBalance)
+                self.logger.trades(f"Delaying buy for this for 2 secs. because could not find satisfactory ask: thresholds - price = {tmpPrice}")
+                time.sleep(2)
+                self._perform_buy(pair, principal)
 
             # place order
             purchaseSuccessful = self._place_buy_order(pair, buyAmount, buyPrice)
 
             # reset relevant global variables
             if purchaseSuccessful:
-                self.originalPurchasePrice = buyPrice
-                self.shouldPurchase = False
-                self.setStopLimit = True
+                self.aggAmount += buyAmount
+                self.aggPrice += buyPrice
+                self.nBuys += 1
+                principalRemaining = round(principal - ((self.aggPrice/self.nBuys)*self.aggAmount), 4) - 0.0001
+                # check to see if all remaining principal has been used (w/ slight buffer to prevent overspending)
+                if principalRemaining < 0.0001:
+                    self.originalPurchasePrice = self.aggPrice/self.nBuys # amortized price
+                    self.shouldPurchase = False
+                    self.setStopLimit = True
+                # try to buy more after brief interval
+                else:
+                    time.sleep(3)
+                    self._perform_buy(pair, principalRemaining)
                 # log successful trade
                 self.logger.trades(f"originalPurchasePrice = {self.originalPurchasePrice}")
             else:
@@ -170,27 +184,21 @@ class ShortTermStrategy():
             raise e
 
 
-    def _find_satisfactory_ask(self, pair: str, tmpPrice: float, tmpAmount: float, availableBalance) -> Tuple[float, float]:
+    def _find_satisfactory_ask(self, pair: str, tmpPrice: float, availableBalance) -> Tuple[float, float]:
         buyPrice = -1.0
         buyAmount = 0.0
-        attempts = 100
 
-        # attempt to find a satisfactory ask (10000 attempts before thread raises an exception and terminates)
-        while True:
+        # attempt to find a satisfactory ask (10 attempts before stopping)
+        for _ in range(10):
             # query order books
-            buyPrice = parsLib.parse_order_book_orders(restLib.get_book_order_price(pair), tmpPrice, tmpAmount, False)
+            buyPrice = parsLib.parse_order_book_orders(restLib.get_book_order_price(pair), tmpPrice, False)
             if buyPrice > 0.0:
                 buyAmount = availableBalance/buyPrice
                 break
-
-            # handle attempts
-            attempts -= 1
-            if attempts < 1:
-                self.logger.program("ShortTermStrategy:_find_satisfactory_ask(): Too many attempts to find satisfactory ask.")
-                break
-
             time.sleep(0.25) # wait a bit and check again to see if there are new orders 
-        
+ 
+        if buyPrice < 0.0:
+            self.logger.trades("ShortTermStrategy:_find_satisfactory_ask(): Too many attempts to find satisfactory ask.")
 
         return (buyPrice, buyAmount)
 

@@ -74,7 +74,7 @@ def parse_ticker_price(tickerObj: Any) -> Tuple[float, float]:
     return (float(tickerObj['lastPrice']), float(tickerObj['priceChange24hr']))
 
 
-def parse_order_book_orders(orderBook: Dict[str, Any], targetPrice: float, amount: float, parseBids: bool) -> float:
+def parse_order_book_orders(orderBook: Dict[str, Any], targetPrice: float, parseBids: bool) -> float:
     """
     NOTE: bids = buyers; asks = sellers
     params: two lists of orders (bids & asks); the price which to compare the orders to; the amount of an asset which to compare the orders to; whether or not to parse the bids or the asks
@@ -83,7 +83,7 @@ def parse_order_book_orders(orderBook: Dict[str, Any], targetPrice: float, amoun
     """
     if parseBids:
         for bid in orderBook["bids"]:
-            if float(bid["price"]) >= targetPrice and float(bid["amount"]) >= amount: 
+            if float(bid["price"]) >= targetPrice: 
                 if comLib.LOG_TO_CONSOLE:
                     print("\n------------------")
                     print("Found appropriate bid:")
@@ -91,7 +91,7 @@ def parse_order_book_orders(orderBook: Dict[str, Any], targetPrice: float, amoun
                 return float(bid["price"])
     else:
         for ask in orderBook["asks"]:
-            if float(ask["price"]) <= targetPrice and float(ask["amount"]) >= amount: 
+            if float(ask["price"]) <= targetPrice: 
                 if comLib.LOG_TO_CONSOLE:
                     print("\n------------------")
                     print("Found appropriate ask:")
