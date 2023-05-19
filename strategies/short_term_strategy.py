@@ -139,8 +139,8 @@ class ShortTermStrategy():
                 self._perform_buy(pair, principal)
 
             # place order (first make sure amount does not exceed available principal)
-            if buyAmount > principal:
-                buyAmount = principal
+            if (buyAmount*buyPrice) > principal:
+                buyAmount = round(principal/buyPrice,8) - 0.00000001
             purchaseSuccessful = self._place_buy_order(pair, buyAmount, buyPrice)
 
             # reset relevant global variables
