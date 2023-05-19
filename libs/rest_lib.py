@@ -5,7 +5,7 @@ from ..entities.order import Order
 from ..libs import common_lib as comLib
 from ..utils.authenticator import *
 from ..utils.logger import *
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 # ------------------------------------
 # SETUP
@@ -38,7 +38,7 @@ def get_balance() -> List[object]:
         raise Exception(f"rest_lib:get_balance(): Unparsable JSON; check response status code: {e}")
 
 
-def get_orders(pair: str) -> List[object]:
+def get_orders(pair: str) -> List[Dict[str, Any]]:
     """
     params: order pair
     performs: gets list of all orders for specified asset for last 90 days
@@ -58,7 +58,7 @@ def get_orders(pair: str) -> List[object]:
     except Exception as e:
         raise Exception(f"rest_lib:get_orders(): Unparsable JSON; check response status code: {e}")
 
-def get_order_by_id(pair: str, orderId: str) -> object:
+def get_order_by_id(pair: str, orderId: str) -> Dict[str, Any]:
     """
     params: order pair; orderId
     performs: gets a specified order for specified asset for last 90 days
