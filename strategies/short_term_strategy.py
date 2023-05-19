@@ -191,10 +191,10 @@ class ShortTermStrategy():
         # attempt to find a satisfactory ask (10 attempts before stopping)
         for _ in range(10):
             # query order books
-            buyPrice = parsLib.parse_order_book_orders(restLib.get_book_order_price(pair), tmpPrice, False)
+            buyPrice, buyAmount = parsLib.parse_order_book_orders(restLib.get_book_order_price(pair), tmpPrice, False)
             if buyPrice > 0.0:
-                buyAmount = availableBalance/buyPrice
                 break
+            
             time.sleep(0.25) # wait a bit and check again to see if there are new orders 
  
         if buyPrice < 0.0:
