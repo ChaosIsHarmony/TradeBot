@@ -100,7 +100,7 @@ def get_asset_price(pair: str) -> float:
         raise Exception(f"rest_lib:get_asset_price(): Unparsable JSON; check response status code: {e}")
 
 
-def get_book_order_price(pair: str) -> object:
+def get_book_order_price(pair: str) -> Dict[str, Any]:
     """
     params: trading pair (e.g., btc_twd)
     performs: gets the most recent book order price for specified asset
