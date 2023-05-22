@@ -129,7 +129,7 @@ TICKER_OBJECT = {
 # TESTS
 # ---------------------
 def test_parse_most_recent_order():
-    print("\n------------------")
+    print("------------------")
     print("STARTING TESTS: test_parse_most_recent_order")
 
     # run function
@@ -143,7 +143,7 @@ def test_parse_most_recent_order():
 
 
 def test_parse_order_total():
-    print("\n------------------")
+    print("------------------")
     print("STARTING TESTS: test_parse_order_total")
 
     # run function
@@ -157,7 +157,7 @@ def test_parse_order_total():
 
 
 def test_parse_balance():
-    print("\n------------------")
+    print("------------------")
     print("STARTING TESTS: test_parse_balance")
 
     # run function
@@ -179,7 +179,7 @@ def test_parse_balance():
 
 
 def test_parse_ticker_price():
-    print("\n------------------")
+    print("------------------")
     print("STARTING TESTS: test_parse_ticker_price")
 
     # run function
@@ -193,7 +193,7 @@ def test_parse_ticker_price():
 
 
 def test_parse_order_book_orders():
-    print("\n------------------")
+    print("------------------")
     print("STARTING TESTS: test_parse_order_book_orders")
 
     # run function
@@ -220,10 +220,21 @@ def test_parse_order_book_orders():
 
 
 
-if __name__ == "__main__":
-    cl.LOG_TO_CONSOLE = False
+def run_all_tests():
+    print("---------------------------")
+    print("------------------")
+    print("STARTING PARSER LIBRARY TESTS")
+    print("------------------")
+    print("---------------------------")
+
     test_parse_most_recent_order()
     test_parse_order_total()
     test_parse_balance()
     test_parse_ticker_price()
     test_parse_order_book_orders()
+
+    print("---------------------------")
+    print("------------------")
+    print("ALL PARSER LIBRARY TESTS COMPLETED")
+    print("------------------")
+    print("---------------------------")
