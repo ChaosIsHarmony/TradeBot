@@ -2,7 +2,9 @@ import math
 from ..libs import common_lib as cl
 from ..libs import parser_lib as pl
 
-# COMMUNAL DATA
+# ---------------------
+# COMMUNAL MOCK DATA
+# ---------------------
 BALANCES = [
             {
                 "currency": "twd",
@@ -112,6 +114,20 @@ ORDERS = [
             }
         ]
 
+TICKER_OBJECT = {
+                    "pair": "sol_twd",
+                    "lastPrice": "601.18",
+                    "isBuyer": False,
+                    "priceChange24hr": "-1.27",
+                    "volume24hr": "1029.912",
+                    "high24hr": "610.17",
+                    "low24hr": "600.03"
+                }
+
+
+# ---------------------
+# TESTS
+# ---------------------
 def test_parse_most_recent_order():
     print("\n------------------")
     print("STARTING TESTS: test_parse_most_recent_order")
@@ -167,10 +183,11 @@ def test_parse_ticker_price():
     print("STARTING TESTS: test_parse_ticker_price")
 
     # run function
-    output = pl.parse_ticker_price()
+    output = pl.parse_ticker_price(TICKER_OBJECT)
 
     # check output
-    assert False, "TODO: Implement Test"
+    assert math.isclose(output[0], float(TICKER_OBJECT["lastPrice"])), f"Last Price: {output[0]}"
+    assert math.isclose(output[1], float(TICKER_OBJECT["priceChange24hr"])), f"Daily Price Delta: {output[1]}"
 
     print("ALL TESTS COMPLETED SUCCESSFULLY")
 
@@ -180,28 +197,33 @@ def test_parse_order_book_orders():
     print("STARTING TESTS: test_parse_order_book_orders")
 
     # run function
-    output_ask_found = pl.parse_order_book_orders(BOOK_ORDERS,55911,3,False)
-    output_ask_not_found_amount = pl.parse_order_book_orders(BOOK_ORDERS,55911,5,False)
-    output_ask_not_found_price = pl.parse_order_book_orders(BOOK_ORDERS,55910,3,False)
+    output_ask_found = pl.parse_order_book_orders(BOOK_ORDERS,55911,False)
+    output_ask_not_found_price = pl.parse_order_book_orders(BOOK_ORDERS,55910,False)
 
-    output_bid_found = pl.parse_order_book_orders(BOOK_ORDERS,55993,1.5,True)
-    output_bid_not_found_amount = pl.parse_order_book_orders(BOOK_ORDERS,55993,2,True)
-    output_bid_not_found_price = pl.parse_order_book_orders(BOOK_ORDERS,55994,1.5,True)
+    output_bid_found = pl.parse_order_book_orders(BOOK_ORDERS,55993,True)
+    output_bid_not_found_price = pl.parse_order_book_orders(BOOK_ORDERS,55994,True)
 
     # check output
-    assert output_ask_found > 0.0, "Failed on finding satsifactory ask" 
-    assert output_ask_not_found_amount < 0.0, "Failed on filtering asks for amount" 
-    assert output_ask_not_found_price < 0.0, "Failed on filtering asks for price" 
+    PRICE = 0
+    AMOUNT = 1
+    assert output_ask_found[PRICE] > 0.0, "Failed on finding satsifactory ask (price)" 
+    assert output_ask_found[AMOUNT] > 0.0, "Failed on finding satsifactory ask (amount)" 
+    assert output_ask_not_found_price[PRICE] < 0.0, "Failed on filtering asks for price (price)" 
+    assert math.isclose(output_ask_not_found_price[AMOUNT], 0.0), "Failed on filtering asks for price (amount)" 
 
-    assert output_bid_found > 0.0, "Failed on finding satsifactory bid" 
-    assert output_bid_not_found_amount < 0.0, "Failed on filtering bids for amount" 
-    assert output_bid_not_found_price < 0.0, "Failed on filtering bids for price" 
+    assert output_bid_found[PRICE] > 0.0, "Failed on finding satsifactory bid (price)"
+    assert output_bid_found[AMOUNT] > 0.0, "Failed on finding satsifactory bid (amount)"
+    assert output_bid_not_found_price[PRICE] < 0.0, "Failed on filtering bids for price (price)"
+    assert math.isclose(output_bid_not_found_price[AMOUNT], 0.0), "Failed on filtering bids for price (amount)"
 
     print("ALL TESTS COMPLETED SUCCESSFULLY")
+
+
 
 if __name__ == "__main__":
     cl.LOG_TO_CONSOLE = False
     test_parse_most_recent_order()
     test_parse_order_total()
     test_parse_balance()
+    test_parse_ticker_price()
     test_parse_order_book_orders()

@@ -63,13 +63,6 @@ def parse_ticker_price(tickerObj: Any) -> Tuple[float, float]:
     performs: prints last sale price
     returns: lastPrice and 24hr delta as a floats
     """
-    """
-    if comLib.LOG_TO_CONSOLE:
-        print("\n------------------")
-        print("Parsed Ticker Price:")
-        print(f"Last price for {tickerObj['pair']} was: {float(tickerObj['lastPrice']):.2f}TWD")
-        print(f"24-delta: {tickerObj['priceChange24hr']}%")
-    """
 
     return (float(tickerObj['lastPrice']), float(tickerObj['priceChange24hr']))
 
