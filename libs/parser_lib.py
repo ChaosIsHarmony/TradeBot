@@ -92,3 +92,23 @@ def parse_order_book_orders(orderBook: Dict[str, Any], targetPrice: float, parse
                 return (float(ask["price"]), float(ask["amount"]))
 
     return (-1.0, 0.0)
+
+
+def parse_order_book_orders_get_lo_ask(ask: Any) -> Tuple[float, float]:
+    """
+    NOTE: bids = buyers; asks = sellers
+    params: an order (the lowest asking order)
+    performs: parses the order's price and amount
+    returns: the price to set the order at
+    """
+    return (float(ask["price"]), float(ask["amount"]))
+
+
+def parse_order_book_orders_get_hi_bid(bid: Any) -> Tuple[float, float]:
+    """
+    NOTE: bids = buyers; asks = sellers
+    params: an order (the highest bidding order)
+    performs: parses the order's price and amount
+    returns: the price to set the order at
+    """
+    return (float(bid["price"]), float(bid["amount"]))
