@@ -13,6 +13,9 @@ from ..libs import rest_lib as restLib
 from ..libs import parser_lib as parsLib
 
 
+ASSET_PAIRS = ["ada_twd", "btc_twd", "sol_twd"]
+
+
 def check_orders_for_buying(asset: str) -> Dict[str, float]:
     availableTWDBalance = parsLib.parse_balance(restLib.get_balance(), "twd")[0]
 
@@ -27,7 +30,7 @@ def check_orders_for_buying(asset: str) -> Dict[str, float]:
     amountToPurchase = comLib.round_down(availableTWDBalance/loAskPrice)
     print(f"amtPurchaseableGivenBalanceAvailable: {amountToPurchase}")
     
-    return { "price": loAskPrice, "amount": amountToPurchase }
+    return { "price": loAskPrice, "amount": amountToPurchase, "amountAvailable": askAmountAvailable, "availableTWDBalance": availableTWDBalance }
 
 
 def check_orders_for_selling(asset: str) -> Dict[str, float]:
@@ -58,11 +61,78 @@ def printUsage() -> None:
     print("\tActions:")
     print("\t\t-b\tBUY")
     print("\t\t-s\tSELL")
+    print("\t\t-p\tPRICES")
+    print("\t\t-t\tACTIVE TRADES")
     print("\tAsset Tickers:")
     print("\t\tADA")
     print("\t\tBTC")
     print("\t\tETH")
+    print("\t\tLTC")
+    print("\t\tMATIC")
     print("\t\tSOL")
+
+
+
+def make_purchase_inquiry() -> None:
+    orderInfo = check_orders_for_buying(asset)
+    if (input("Purchase now? (y/n)\n")) == "y":
+        # Sometimes there's not enough available for purchase at a given price
+        if orderInfo["amount"] > orderInfo["amountAvailable"]:
+            print(f"Only {orderInfo['amountAvailable']} available for purchase, so just buying that amount. For more, place another order.")
+            place_order(asset + "_twd", "buy", orderInfo["amountAvailable"], orderInfo["price"])
+        else:
+            place_order(asset + "_twd", "buy", orderInfo["amount"], orderInfo["price"])
+    else:
+        if (input("Place a limit buy order? (y/n)\n")) == "y":
+            price = float(input("Price: "))
+            amount = comLib.round_down(orderInfo["availableTWDBalance"]/price)
+            place_order(asset + "_twd", "buy", amount, price)
+
+
+
+def make_sale_inquiry() -> None:
+    orderInfo = check_orders_for_selling(asset)
+    if (input("Sell now? (y/n)\n")) == "y":
+        place_order(asset + "_twd", "sell", orderInfo["amount"], orderInfo["price"])
+    else:
+        if (input("Place a limit sell order? (y/n)\n")) == "y":
+            price = float(input("Price: "))
+            place_order(asset + "_twd", "sell", orderInfo["amount"], price)
+
+
+
+def make_price_inquiry() -> None:
+    for pair in ASSET_PAIRS:
+        priceInfo = restLib.get_asset_price(pair)
+        print(pair)
+        print(f"\tLast Price: {priceInfo['lastPrice']}")
+        print(f"\tHi 24hr Price: {priceInfo['high24hr']}")
+        print(f"\tLo 24hr Price: {priceInfo['low24hr']}")
+        print(f"\t24hr Price Delta: {priceInfo['priceChange24hr']}")
+        print(f"\t24hr Trade Volume: {priceInfo['volume24hr']}")
+
+
+
+def get_status_str(code: int) -> str:
+    if code == 0: return "FULLY INCOMPLETE"
+    if code == 1: return "PARTIALLY COMPLETED"
+    if code == 2: return "COMPLETED"
+    return f"Unknown code: {code}"
+
+
+def make_active_trades_inquiry() -> None:
+    for pair in ASSET_PAIRS:
+        orderInfo = sorted(restLib.get_orders(pair), key=lambda d: d["updatedTimestamp"])[-1]
+        print(pair)
+        print(f"\tOrder ID: {orderInfo['id']}")
+        print(f"\tType: {orderInfo['action']}")
+        print(f"\tStatus: {get_status_str(orderInfo['status'])}")
+        print(f"\tPrice: {orderInfo['price']}")
+        print(f"\tAvg. Execution Price: {orderInfo['avgExecutionPrice']}")
+        print(f"\tTotal: {orderInfo['total']}")
+        print(f"\tFee: {orderInfo['fee']}")
+        print(f"\tExecuted Amount: {orderInfo['executedAmount']}")
+        print(f"\tRemaining Amount: {orderInfo['remainingAmount']}")
 
 
 if __name__ == "__main__":
@@ -70,17 +140,16 @@ if __name__ == "__main__":
     comLib.LOG_TO_CONSOLE = False
 
     try:
-        asset = sys.argv[2].lower()
         if sys.argv[1] == "-b": 
-            action = "buy"
-            orderInfo = check_orders_for_buying(asset)
-            if (input("Purchase? (y/n)\n")) == "y":
-                place_order(asset + "_twd", "buy", orderInfo["amount"], orderInfo["price"])
+            asset = sys.argv[2].lower()
+            make_purchase_inquiry()
         elif sys.argv[1] == "-s": 
-            action = "sell"
-            orderInfo = check_orders_for_selling(asset)
-            if (input("Sell? (y/n)\n")) == "y":
-                place_order(asset + "_twd", "sell", orderInfo["amount"], orderInfo["price"])
+            asset = sys.argv[2].lower()
+            make_sale_inquiry()
+        elif sys.argv[1] == "-p":
+            make_price_inquiry()
+        elif sys.argv[1] == "-t":
+            make_active_trades_inquiry()
         else:
             printUsage()
     except:

@@ -79,11 +79,11 @@ def get_order_by_id(pair: str, orderId: str) -> Dict[str, Any]:
         raise Exception(f"rest_lib:get_order_by_id(): Unparsable JSON; check response status code: {e}")
 
 
-def get_asset_price(pair: str) -> float:
+def get_asset_price(pair: str) -> Dict[str, Any]:
     """
     params: trading pair (e.g., btc_twd)
     performs: gets most recent price for specified trading pair
-    returns: price as a float
+    returns: ticker info as a dict
     """
     endpoint = f"/tickers/{pair}"
     response = requests.get(comLib.API_BASE_URL+endpoint, headers=create_default_headers())
