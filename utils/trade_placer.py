@@ -43,7 +43,7 @@ def check_orders_for_selling(asset: str) -> Dict[str, float]:
     print("BIDS (for selling)")
     print(f"price: {hiBidPrice}")
     print(f"amtDesired: {bidAmountAvailable}")
-    totalSale = comLib.round_down(availableAssetBalance*availableAssetBalance)
+    totalSale = comLib.round_down(availableAssetBalance*hiBidPrice)
     print(f"totalSale: {totalSale}")
 
     return { "price": hiBidPrice, "amount": availableAssetBalance }
