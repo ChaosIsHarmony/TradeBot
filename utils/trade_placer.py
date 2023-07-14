@@ -43,7 +43,7 @@ def check_orders_for_selling(asset: str) -> Dict[str, float]:
     print("BIDS (for selling)")
     print(f"price: {hiBidPrice}")
     print(f"amtDesired: {bidAmountAvailable}")
-    totalSale = comLib.round_down(availableAssetBalance*hiBidPrice)
+    totalSale = comLib.round_down(availableAssetBalance*availableAssetBalance)
     print(f"totalSale: {totalSale}")
 
     return { "price": hiBidPrice, "amount": availableAssetBalance }
@@ -117,6 +117,7 @@ def get_status_str(code: int) -> str:
     if code == 0: return "FULLY INCOMPLETE"
     if code == 1: return "PARTIALLY COMPLETED"
     if code == 2: return "COMPLETED"
+    if code == 4: return "CANCELLED"
     return f"Unknown code: {code}"
 
 
