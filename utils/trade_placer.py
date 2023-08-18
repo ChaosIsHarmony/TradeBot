@@ -27,8 +27,10 @@ def check_orders_for_buying(asset: str) -> Dict[str, float]:
     print("ASKS (for purchasing)")
     print(f"price: {loAskPrice}")
     print(f"amtAvailable: {askAmountAvailable}")
-    amountToPurchase = comLib.round_down(availableTWDBalance/loAskPrice)
-    print(f"amtPurchaseableGivenBalanceAvailable: {amountToPurchase}")
+    amountCanPurchase = comLib.round_down(availableTWDBalance/loAskPrice)
+    print(f"amtPurchaseableGivenBalanceAvailable: {amountCanPurchase}")
+    quantityTWD = int(input("How much (in TWD)? "))
+    amountToPurchase = comLib.round_down(quantityTWD/loAskPrice)
     
     return { "price": loAskPrice, "amount": amountToPurchase, "amountAvailable": askAmountAvailable, "availableTWDBalance": availableTWDBalance }
 
@@ -43,10 +45,12 @@ def check_orders_for_selling(asset: str) -> Dict[str, float]:
     print("BIDS (for selling)")
     print(f"price: {hiBidPrice}")
     print(f"amtDesired: {bidAmountAvailable}")
-    totalSale = comLib.round_down(availableAssetBalance*hiBidPrice)
-    print(f"totalSale: {totalSale}")
+    totalCanSell = comLib.round_down(availableAssetBalance*hiBidPrice)
+    print(f"totalSale: {totalCanSell}")
+    quantityTWD = int(input("How much (in TWD)? "))
+    amountToSell = comLib.round_down(quantityTWD*hiBidPrice)
 
-    return { "price": hiBidPrice, "amount": availableAssetBalance }
+    return { "price": hiBidPrice, "amount": amountToSell }
 
 
 def place_order(pair: str, action: str, availableBalance, price) -> None:
@@ -85,9 +89,9 @@ def make_purchase_inquiry() -> None:
     else:
         if (input("Place a limit buy order? (y/n)\n")) == "y":
             price = float(input("Price: "))
-            amount = comLib.round_down(orderInfo["availableTWDBalance"]/price)
+            quantityTWD = int(input("How much (in TWD)? "))
+            amount = comLib.round_down(quantityTWD/price)
             place_order(asset + "_twd", "buy", amount, price)
-
 
 
 def make_sale_inquiry() -> None:
@@ -97,7 +101,8 @@ def make_sale_inquiry() -> None:
     else:
         if (input("Place a limit sell order? (y/n)\n")) == "y":
             price = float(input("Price: "))
-            place_order(asset + "_twd", "sell", orderInfo["amount"], price)
+            amount = float(input("Amount: "))
+            place_order(asset + "_twd", "sell", amount, price)
 
 
 
@@ -117,6 +122,7 @@ def get_status_str(code: int) -> str:
     if code == 0: return "FULLY INCOMPLETE"
     if code == 1: return "PARTIALLY COMPLETED"
     if code == 2: return "COMPLETED"
+    if code == 3: return "CANCELLED AFTER PARTIAL COMPLETION"
     if code == 4: return "CANCELLED"
     return f"Unknown code: {code}"
 
