@@ -129,17 +129,21 @@ def get_status_str(code: int) -> str:
 
 def make_active_trades_inquiry() -> None:
     for pair in ASSET_PAIRS:
-        orderInfo = sorted(restLib.get_orders(pair), key=lambda d: d["updatedTimestamp"])[-1]
-        print(pair)
-        print(f"\tOrder ID: {orderInfo['id']}")
-        print(f"\tType: {orderInfo['action']}")
-        print(f"\tStatus: {get_status_str(orderInfo['status'])}")
-        print(f"\tPrice: {orderInfo['price']}")
-        print(f"\tAvg. Execution Price: {orderInfo['avgExecutionPrice']}")
-        print(f"\tTotal: {orderInfo['total']}")
-        print(f"\tFee: {orderInfo['fee']}")
-        print(f"\tExecuted Amount: {orderInfo['executedAmount']}")
-        print(f"\tRemaining Amount: {orderInfo['remainingAmount']}")
+        try:
+            orderInfo = sorted(restLib.get_orders(pair), key=lambda d: d["updatedTimestamp"])[-1]
+            print(pair)
+            print(f"\tOrder ID: {orderInfo['id']}")
+            print(f"\tType: {orderInfo['action']}")
+            print(f"\tStatus: {get_status_str(orderInfo['status'])}")
+            print(f"\tPrice: {orderInfo['price']}")
+            print(f"\tAvg. Execution Price: {orderInfo['avgExecutionPrice']}")
+            print(f"\tTotal: {orderInfo['total']}")
+            print(f"\tFee: {orderInfo['fee']}")
+            print(f"\tExecuted Amount: {orderInfo['executedAmount']}")
+            print(f"\tRemaining Amount: {orderInfo['remainingAmount']}")
+        except Exception as e:
+            print(e)
+            continue
 
 
 if __name__ == "__main__":

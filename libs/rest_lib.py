@@ -58,6 +58,7 @@ def get_orders(pair: str) -> List[Dict[str, Any]]:
     except Exception as e:
         raise Exception(f"rest_lib:get_orders(): Unparsable JSON; check response status code: {e}")
 
+
 def get_order_by_id(pair: str, orderId: str) -> Dict[str, Any]:
     """
     params: order pair; orderId
